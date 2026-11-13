@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#1b1420">
+  <title>Tilt Lab</title>
+  <style>
+    :root { --bg: #1b1420; --panel: #2a1f31; --ink: #f4ead5; --dim: #a8977f; --gold: #f2c14e; --gold-deep: #b8862b; --red: #e4572e; --ok: #7bd389; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-family: "Trebuchet MS", "Segoe UI", system-ui, sans-serif; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
+    body { display: flex; justify-content: center; }
+    [hidden] { display: none !important; }
+    #app { width: 100%; max-width: 520px; height: 100dvh; display: flex; flex-direction: column; padding: env(safe-area-inset-top) 12px env(safe-area-inset-bottom); user-select: none; -webkit-user-select: none; }
+    header { display: flex; align-items: baseline; justify-content: space-between; padding: 10px 2px 6px; }
+    h1 { font-size: 20px; margin: 0; color: var(--gold); }
+    #score { font-size: 15px; color: var(--dim); }
+    #score b { color: var(--gold); font-size: 20px; }
+    #stage { flex: 1; min-height: 0; display: grid; place-items: center; touch-action: none; }
+    canvas { display: block; border-radius: 18px; box-shadow: 0 6px 24px #0008; }
+    .readout { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 8px 0 4px; font-size: 12px; color: var(--dim); text-align: center; }
+    .readout b { display: block; font-size: 16px; color: var(--ink); font-variant-numeric: tabular-nums; }
+    .meter { height: 8px; border-radius: 4px; background: #ffffff14; overflow: hidden; position: relative; margin: 4px 0 8px; }
+    .meter i { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--gold); transition: width 60ms linear; }
+    .meter u { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--red); }
+    details { font-size: 14px; color: var(--dim); padding-bottom: 12px; }
+    summary { cursor: pointer; padding: 6px 0; }
+    .row { display: grid; grid-template-columns: 110px 1fr 44px; align-items: center; gap: 8px; margin: 6px 0; }
+    .row output { text-align: right; color: var(--ink); font-variant-numeric: tabular-nums; }
+    input[type=range] { width: 100%; accent-color: var(--gold); }
+    .btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+    button { font: inherit; cursor: pointer; }
+    .small { padding: 8px 14px; border-radius: 999px; border: 2px solid var(--gold); background: none; color: var(--gold); font-weight: 700; }
+    .overlay { position: fixed; inset: 0; z-index: 10; background: rgba(15,10,18,.96); display: flex; align-items: center; justify-content: center; padding: 24px 16px; overflow-y: auto; }
+    .card { max-width: 420px; text-align: center; line-height: 1.45; }
+    .card h2 { color: var(--gold); font-size: 28px; margin: 0 0 10px; }
+    .card p { margin: 8px 0; }
+    .card .dim { color: var(--dim); font-size: 15px; }
+    .primary { margin-top: 14px; padding: 14px 28px; border: none; border-radius: 999px; background: var(--gold); color: #2a1a05; font-size: 18px; font-weight: 800; box-shadow: 0 4px 0 var(--gold-deep); }
+    .warn { background: #e4572e22; border: 2px solid var(--red); border-radius: 12px; padding: 12px; text-align: left; font-size: 15px; }
+    .warn b { color: var(--red); }
+    #status { font-size: 13px; min-height: 18px; }
+    #status.ok { color: var(--ok); }
+    #status.bad { color: var(--red); }
+  </style>
+</head>
+<body>
+  <main id="app">
+    <header>
+      <h1>Tilt Lab</h1>
+      <div id="score">sunk <b id="sunk">0</b> · flips <b id="flips">0</b></div>
+    </header>
+    <div id="status"></div>
+    <div id="stage"><canvas id="tray"></canvas></div>
+    <div class="readout">
+      <div>tilt x<b id="tx">–</b></div>
+      <div>tilt y<b id="ty">–</b></div>
+      <div>sensor<b id="hz">–</b></div>
+      <div>shake<b id="shk">–</b></div>
+    </div>
+    <div class="meter" title="Shake strength; the red line is the shake threshold"><i id="meter"></i><u id="mark"></u></div>
+    <details>
+      <summary>Tuning</summary>
+      <div class="row"><label for="sens">Tilt strength</label><input id="sens" type="range" min="0.2" max="3" step="0.1" value="1"><output for="sens"></output></div>
+      <div class="row"><label for="dead">Dead zone (°)</label><input id="dead" type="range" min="0" max="8" step="0.5" value="1.5"><output for="dead"></output></div>
+      <div class="row"><label for="fric">Friction</label><input id="fric" type="range" min="0" max="4" step="0.1" value="1.2"><output for="fric"></output></div>
+      <div class="row"><label for="shake">Shake needs</label><input id="shake" type="range" min="6" max="30" step="1" value="14"><output for="shake"></output></div>
+      <div class="btns">
+        <button id="level" class="small" type="button">Set level here</button>
+        <button id="haptics" class="small" type="button" aria-pressed="true">Buzz: on</button>
+      </div>
+    </details>
+  </main>
+
+  <section id="intro" class="overlay">
+    <div class="card">
+      <h2>Tilt Lab</h2>
+      <p>Tilt the phone to roll the coin into the hole. Shake it to flip the coin.</p>
+      <p class="dim">Hold the phone however feels comfortable when you press start. That angle counts as level.</p>
+      <div id="insecure" class="warn" hidden>
+        <b>Tilt and shake are switched off on this address.</b> Phones only allow motion sensors on secure (https) addresses or on the computer itself. You can still try it with the arrow keys and space bar.
+      </div>
+      <button id="start" class="primary" type="button">Start</button>
+      <p class="dim">No phone? Arrow keys tilt, space shakes.</p>
+    </div>
+  </section>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const canvas = $('tray'), ctx = canvas.getContext('2d');
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---------- settings ----------
+  const S = { sens: 1, dead: 1.5, fric: 1.2, shake: 14, haptics: true };
+  for (const id of ['sens', 'dead', 'fric', 'shake']) {
+    const input = $(id), out = input.nextElementSibling;
+    const update = () => { S[id] = parseFloat(input.value); out.textContent = input.value; drawMark(); };
+    input.addEventListener('input', update);
+    update();
+  }
+  $('haptics').addEventListener('click', e => {
+    S.haptics = !S.haptics;
+    e.target.textContent = 'Buzz: ' + (S.haptics ? 'on' : 'off');
+    e.target.setAttribute('aria-pressed', String(S.haptics));
+  });
+  const buzz = ms => { if (S.haptics) try { navigator.vibrate?.(ms); } catch {} };
+
+  // ---------- sound ----------
+  let audio = null;
+  function tone(f, dur = 0.06, type = 'triangle', vol = 0.05, slide = null, delay = 0) {
+    if (!audio) return;
+    const t = audio.currentTime + delay, o = audio.createOscillator(), g = audio.createGain();
+    o.type = type; o.frequency.setValueAtTime(f, t);
+    if (slide) o.frequency.exponentialRampToValueAtTime(slide, t + dur);
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(audio.destination); o.start(t); o.stop(t + dur + 0.02);
+  }
+
+  // ---------- sensors ----------
+  // Tilt comes from device orientation (beta = front/back, gamma = left/right).
+  // Shake comes from device motion (acceleration strength, direction ignored).
+  const sensor = { beta: null, gamma: null, base: null, events: 0, hz: 0, motion: 0, lastShake: 0, live: false };
+  let keyTilt = { x: 0, y: 0 };
+  let tilt = { x: 0, y: 0 };       // degrees, relative to "level", in screen directions
+
+  function screenAngle() {
+    const a = screen.orientation?.angle ?? window.orientation ?? 0;
+    return ((a % 360) + 360) % 360;
+  }
+  function onOrientation(e) {
+    if (e.beta === null || e.gamma === null) return;
+    sensor.beta = e.beta; sensor.gamma = e.gamma; sensor.events++;
+    if (!sensor.live) { sensor.live = true; setStatus('Motion sensors working.', 'ok'); }
+    if (!sensor.base) setLevel();
+  }
+  function setLevel() {
+    if (sensor.beta === null) return;
+    sensor.base = { beta: sensor.beta, gamma: sensor.gamma };
+  }
+  let hpX = 0, hpY = 0, hpZ = 0, lpX = 0, lpY = 0, lpZ = 0;
+  function onMotion(e) {
+    let x, y, z;
+    if (e.acceleration && e.acceleration.x !== null) ({ x, y, z } = e.acceleration);
+    else if (e.accelerationIncludingGravity && e.accelerationIncludingGravity.x !== null) {
+      // No gravity-free reading on this phone: strip gravity with a simple filter.
+      const g = e.accelerationIncludingGravity;
+      lpX = lpX * 0.9 + g.x * 0.1; lpY = lpY * 0.9 + g.y * 0.1; lpZ = lpZ * 0.9 + g.z * 0.1;
+      x = g.x - lpX; y = g.y - lpY; z = g.z - lpZ;
+    } else return;
+    const m = Math.hypot(x, y, z);
+    sensor.motion = Math.max(m, sensor.motion * 0.85);
+    if (m > S.shake && performance.now() - sensor.lastShake > 350) shake();
+  }
+  function readTilt() {
+    if (sensor.live && sensor.base) {
+      let db = sensor.beta - sensor.base.beta, dg = sensor.gamma - sensor.base.gamma;
+      if (db > 180) db -= 360; if (db < -180) db += 360;
+      const a = screenAngle();
+      // Turn phone axes into screen directions if the screen has rotated.
+      const map = { 0: [dg, db], 90: [db, -dg], 180: [-dg, -db], 270: [-db, dg] }[a] || [dg, db];
+      tilt.x = map[0]; tilt.y = map[1];
+    } else {
+      tilt.x += (keyTilt.x - tilt.x) * 0.2;
+      tilt.y += (keyTilt.y - tilt.y) * 0.2;
+    }
+  }
+  setInterval(() => { sensor.hz = sensor.events; sensor.events = 0; }, 1000);
+
+  // ---------- the tray ----------
+  let W = 300, H = 400, R = 18;
+  const coin = { x: 150, y: 200, vx: 0, vy: 0, z: 0, vz: 0, spin: 0, heads: true };
+  const hole = { x: 150, y: 80, r: 26 };
+  let sunk = 0, flips = 0, sinking = 0;
+
+  function resize() {
+    const r = $('stage').getBoundingClientRect();
+    W = Math.floor(Math.min(r.width, r.height * 0.75));
+    H = Math.floor(Math.min(r.height, W / 0.75));
+    R = Math.round(W * 0.06);
+    hole.r = Math.round(R * 1.45);
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    coin.x = Math.min(Math.max(coin.x, R), W - R);
+    coin.y = Math.min(Math.max(coin.y, R), H - R);
+    if (hole.x > W || hole.y > H) moveHole();
+  }
+  function moveHole() {
+    for (let i = 0; i < 50; i++) {
+      hole.x = hole.r + Math.random() * (W - hole.r * 2);
+      hole.y = hole.r + Math.random() * (H - hole.r * 2);
+      if (Math.hypot(hole.x - coin.x, hole.y - coin.y) > W * 0.45) return;
+    }
+  }
+
+  function shake() {
+    sensor.lastShake = performance.now();
+    if (coin.z > 0 || sinking) return;
+    coin.vz = 9;                     // hop
+    coin.vx += (Math.random() - 0.5) * 220;
+    coin.vy += (Math.random() - 0.5) * 220;
+    coin.heads = Math.random() < 0.5;
+    flips++; $('flips').textContent = flips;
+    buzz([15, 30, 15]);
+    for (let i = 0; i < 5; i++) tone(1200 + i * 110, 0.03, 'triangle', 0.03, null, i * 0.06);
+    tone(coin.heads ? 784 : 262, 0.14, coin.heads ? 'triangle' : 'sawtooth', 0.04, null, 0.36);
+  }
+
+  function step(dt) {
+    readTilt();
+    const dz = S.dead;
+    const ease = v => (Math.abs(v) <= dz ? 0 : Math.sign(v) * Math.min(Math.abs(v) - dz, 40));
+    const ax = ease(tilt.x), ay = ease(tilt.y);
+    const k = W * 0.09 * S.sens;   // pixels per second squared per degree
+    if (sinking) {
+      sinking += dt;
+      coin.x += (hole.x - coin.x) * Math.min(1, dt * 10);
+      coin.y += (hole.y - coin.y) * Math.min(1, dt * 10);
+      if (sinking > 0.55) { sinking = 0; moveHole(); coin.vx = coin.vy = 0; }
+      return;
+    }
+    coin.vx += ax * k * dt; coin.vy += ay * k * dt;
+    const f = Math.exp(-S.fric * dt);
+    coin.vx *= f; coin.vy *= f;
+    coin.x += coin.vx * dt; coin.y += coin.vy * dt;
+    if (coin.z > 0 || coin.vz > 0) {
+      coin.vz -= 30 * dt; coin.z += coin.vz * dt * 10;
+      coin.spin += dt * 30;
+      if (coin.z <= 0) { coin.z = 0; coin.vz = 0; coin.spin = 0; buzz(12); tone(180, 0.05, 'square', 0.03); }
+    }
+    for (const [pos, vel, max] of [['x', 'vx', W], ['y', 'vy', H]]) {
+      if (coin[pos] < R || coin[pos] > max - R) {
+        coin[pos] = Math.min(Math.max(coin[pos], R), max - R);
+        const hit = Math.abs(coin[vel]);
+        coin[vel] *= -0.45;
+        if (hit > W * 0.35) { buzz(Math.min(30, hit / W * 25)); tone(140 + Math.min(200, hit / 4), 0.04, 'square', 0.03); }
+      }
+    }
+    // Into the hole: only when on the ground and not too fast.
+    const d = Math.hypot(coin.x - hole.x, coin.y - hole.y);
+    const speed = Math.hypot(coin.vx, coin.vy);
+    if (coin.z === 0 && d < hole.r - R * 0.4 && speed < W * 1.4) {
+      sinking = 0.0001; sunk++; $('sunk').textContent = sunk;
+      buzz([30, 40, 60]);
+      tone(988, 0.06); tone(1319, 0.08, 'triangle', 0.05, null, 0.06); tone(1760, 0.12, 'triangle', 0.05, null, 0.13);
+    } else if (coin.z === 0 && d < hole.r) {
+      // Rim: pull gently towards the hole, so near-misses wobble.
+      const pull = W * 0.6 * dt;
+      coin.vx += (hole.x - coin.x) / d * pull; coin.vy += (hole.y - coin.y) / d * pull;
+    }
+  }
+
+  function draw(now) {
+    ctx.clearRect(0, 0, W, H);
+    // tray
+    const g = ctx.createLinearGradient(0, 0, W, H);
+    g.addColorStop(0, '#3f3046'); g.addColorStop(1, '#2f2335');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = '#ffffff08'; ctx.lineWidth = 1;
+    for (let x = W / 8; x < W; x += W / 8) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+    for (let y = W / 8; y < H; y += W / 8) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+    // hole
+    ctx.fillStyle = '#0b070d';
+    ctx.beginPath(); ctx.arc(hole.x, hole.y, hole.r, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = `rgba(242,193,78,${0.35 + 0.3 * Math.sin(now / 300)})`;
+    ctx.lineWidth = 3; ctx.stroke();
+    // tilt arrow (which way is "down")
+    const mag = Math.hypot(tilt.x, tilt.y);
+    if (mag > S.dead) {
+      ctx.save(); ctx.translate(W / 2, H / 2); ctx.rotate(Math.atan2(tilt.y, tilt.x));
+      ctx.strokeStyle = '#ffffff22'; ctx.lineWidth = 6; ctx.lineCap = 'round';
+      const len = Math.min(mag, 30) / 30 * W * 0.25;
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(len, 0); ctx.stroke();
+      ctx.restore();
+    }
+    // coin: shadow, then the coin squashed by its spin
+    const scale = sinking ? Math.max(0, 1 - sinking / 0.55) : 1;
+    const lift = coin.z * 2.2;
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath(); ctx.ellipse(coin.x + lift * 0.4, coin.y + lift * 0.6 + R * 0.15, R * scale, R * 0.9 * scale, 0, 0, Math.PI * 2); ctx.fill();
+    const cx = coin.x, cy = coin.y - lift, squash = Math.abs(Math.cos(coin.spin)) * 0.85 + 0.15;
+    ctx.save(); ctx.translate(cx, cy); ctx.scale(scale, scale * squash);
+    const cg = ctx.createRadialGradient(-R * 0.3, -R * 0.35, R * 0.1, 0, 0, R);
+    cg.addColorStop(0, coin.heads ? '#ffe9a3' : '#efe0b8'); cg.addColorStop(0.5, coin.heads ? '#f2c14e' : '#c9a24a'); cg.addColorStop(1, coin.heads ? '#b8862b' : '#7d5a1c');
+    ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#8a6420'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = coin.heads ? '#5a3d0c' : '#3a2450';
+    ctx.font = `${Math.round(R * 1.15)}px "Segoe UI Symbol", system-ui, sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(coin.heads ? '☺' : '☹', 0, R * 0.05);
+    ctx.restore();
+  }
+
+  function hud() {
+    $('tx').textContent = (tilt.x >= 0 ? '+' : '') + tilt.x.toFixed(0) + '°';
+    $('ty').textContent = (tilt.y >= 0 ? '+' : '') + tilt.y.toFixed(0) + '°';
+    $('hz').textContent = sensor.live ? sensor.hz + '/s' : 'keys';
+    $('shk').textContent = sensor.motion.toFixed(0);
+    $('meter').style.width = Math.min(100, sensor.motion / 30 * 100) + '%';
+  }
+  function drawMark() { $('mark').style.left = Math.min(100, S.shake / 30 * 100) + '%'; }
+
+  let last = performance.now(), running = false;
+  function frame(now) {
+    const dt = Math.min(0.033, (now - last) / 1000); last = now;
+    if (running) step(dt);
+    draw(now); hud();
+    requestAnimationFrame(frame);
+  }
+
+  function setStatus(msg, kind) { const s = $('status'); s.textContent = msg; s.className = kind || ''; }
+
+  // ---------- start ----------
+  async function start() {
+    try { audio = new (window.AudioContext || window.webkitAudioContext)(); await audio.resume(); } catch { audio = null; }
+    // iPhone asks permission for motion; Android does not.
+    for (const Ev of [window.DeviceOrientationEvent, window.DeviceMotionEvent]) {
+      if (Ev && typeof Ev.requestPermission === 'function') {
+        try { if (await Ev.requestPermission() !== 'granted') setStatus('Motion permission was refused, so tilt is off.', 'bad'); } catch {}
+      }
+    }
+    window.addEventListener('deviceorientation', onOrientation);
+    window.addEventListener('devicemotion', onMotion);
+    // Keep the screen from rotating or sleeping while you tilt. Both are best-effort.
+    if (matchMedia('(pointer: coarse)').matches) {
+      try { await document.documentElement.requestFullscreen?.(); } catch {}
+      try { await screen.orientation?.lock?.('portrait'); } catch {}
+    }
+    try { await navigator.wakeLock?.request('screen'); } catch {}
+    $('intro').hidden = true;
+    running = true;
+    resize();
+    setTimeout(() => {
+      if (!sensor.live) setStatus(window.isSecureContext ? 'No motion sensors found. Using arrow keys and space.' : 'Tilt is switched off on this address (not https). Using arrow keys and space.', 'bad');
+    }, 1200);
+  }
+
+  $('start').addEventListener('click', start);
+  $('level').addEventListener('click', () => { setLevel(); buzz(20); });
+  if (!window.isSecureContext) $('insecure').hidden = false;
+
+  // ---------- keyboard and mouse stand-ins ----------
+  const held = new Set();
+  const keyMap = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+  function updateKeys() {
+    keyTilt = { x: 0, y: 0 };
+    for (const k of held) { keyTilt.x += keyMap[k][0] * 15; keyTilt.y += keyMap[k][1] * 15; }
+  }
+  addEventListener('keydown', e => {
+    if (e.key in keyMap) { e.preventDefault(); held.add(e.key); updateKeys(); }
+    if (e.key === ' ' && running) { e.preventDefault(); shake(); }
+  });
+  addEventListener('keyup', e => { if (held.delete(e.key)) updateKeys(); });
+
+  addEventListener('resize', resize);
+  resize();
+  requestAnimationFrame(frame);
+
+  // For automated checks only.
+  window.__lab = {
+    coin, hole, sensor, tilt, start, shake,
+    get sunk() { return sunk; },
+    tick: (frames = 1, dt = 1 / 60) => { for (let i = 0; i < frames; i++) step(dt); },
+  };
+})();
+</script>
+</body>
+</html>
