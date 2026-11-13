@@ -5,10 +5,12 @@
 //   each frame: motion.read(); then use motion.tilt.x / motion.tilt.y (degrees)
 //   motion.onSample = ({ accel, dt }) => ...       // every motion reading
 //   motion.onStep = strength => ...                // every footstep
+//   motion.faceDown()                              // true while the screen faces the floor
 //
 // Tilt comes from device orientation; shake and steps from device motion.
 // Both only exist on secure (https) pages. Without them, keys stand in:
-// arrows tilt, space shakes, Enter takes a step.
+// arrows tilt, space shakes (Shift+space gently), Enter takes a step,
+// holding F counts as face down.
 
 const G = 9.81;
 
@@ -23,7 +25,7 @@ export function createMotion({ keyTilt = 15 } = {}) {
     stepLow: 0.5,              // how far below it must dip first
     onSample: null,
     onStep: null,
-    start, level, read, stillFor,
+    start, level, read, stillFor, faceDown,
   };
 
   let beta = null, gamma = null, base = null;
@@ -101,6 +103,12 @@ export function createMotion({ keyTilt = 15 } = {}) {
     return m.tilt;
   }
 
+  // Screen facing the floor. Edge-on readings are unreliable, so those don't count.
+  function faceDown() {
+    if (m.live && beta !== null) return Math.abs(beta) > 125 && Math.abs(gamma) < 65;
+    return keys.has('KeyF');
+  }
+
   // Milliseconds since the phone last moved noticeably.
   function stillFor() { return performance.now() - quietSince; }
 
@@ -136,15 +144,16 @@ export function createMotion({ keyTilt = 15 } = {}) {
   addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT') return;
     if (e.key.startsWith('Arrow')) { keys.add(e.key); e.preventDefault(); }
+    else if (e.code === 'KeyF') keys.add('KeyF');
     else if (e.key === ' ' && !e.repeat) {
       e.preventDefault();
       quietSince = performance.now();
-      m.onSample?.({ accel: 22, dt: 0.15, now: performance.now(), key: true });
+      m.onSample?.({ accel: e.shiftKey ? 8 : 22, dt: 0.15, now: performance.now(), key: true });
     } else if (e.key === 'Enter' && !e.repeat) {
       m.onStep?.(1.8);
     }
   });
-  addEventListener('keyup', e => keys.delete(e.key));
+  addEventListener('keyup', e => { keys.delete(e.key); keys.delete(e.code); });
 
   return m;
 }

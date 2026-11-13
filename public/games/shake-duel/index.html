@@ -19,6 +19,7 @@
 
     #foe-label { font-size: 13px; color: var(--dim); }
     #foe-name { font-size: 20px; font-weight: 800; text-align: center; padding: 0 12px; min-height: 26px; }
+    #foe-rule { font-size: 13px; color: var(--gold); text-align: center; padding: 2px 16px 0; min-height: 18px; }
     #foe-hp { width: 70%; height: 12px; border-radius: 6px; background: #ffffff14; overflow: hidden; margin: 8px 0 12px; }
     #foe-hp i { display: block; height: 100%; width: 100%; background: var(--red); transition: width .3s ease; }
 
@@ -27,21 +28,28 @@
     @keyframes bob { 50% { translate: 0 -8px; } }
     #foe.lean-left { transform: translateX(-18%) rotate(-14deg) scale(1.05); }
     #foe.lean-right { transform: translateX(18%) rotate(14deg) scale(1.05); }
+    #foe.lean-top { transform: translateY(-14%) scale(1.15); }
+    #foe.lean-bottom { transform: translateY(14%) scale(0.92); }
+    #foe.scan { animation: scan 1.2s ease-in-out infinite; }
+    @keyframes scan { 0%,100% { transform: rotate(-10deg); } 50% { transform: rotate(10deg); } }
     #foe.recoil { transform: translateY(-6%) rotate(8deg) scale(0.88); }
     #foe.out { transform: translateY(40%) rotate(80deg) scale(0.6); opacity: .25; transition: transform .6s ease, opacity .6s ease; }
 
     .strike { position: absolute; top: 40%; font-size: 64px; font-weight: 900; color: var(--red); text-shadow: 0 3px 0 #0008; animation: strike .5s ease-in-out infinite alternate; }
     .strike.left { left: 4%; } .strike.right { right: 4%; }
+    .strike.top { top: 0; left: 50%; translate: -50% 0; } .strike.bottom { top: auto; bottom: 0; left: 50%; translate: -50% 0; }
     @keyframes strike { from { opacity: .5; } to { opacity: 1; } }
 
     #prompt { font-size: 54px; font-weight: 900; letter-spacing: 2px; min-height: 66px; color: var(--gold); text-shadow: 0 4px 0 #0008; }
     #prompt.big { animation: pop .35s ease; }
     @keyframes pop { from { transform: scale(1.6); opacity: 0; } to { transform: none; opacity: 1; } }
     #prompt.danger { color: var(--blue); }
+    #prompt.long { font-size: 38px; }
 
     #power { width: 80%; height: 18px; border-radius: 9px; background: #ffffff14; overflow: hidden; margin-top: 10px; visibility: hidden; }
     #power.on { visibility: visible; }
     #power i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--gold), var(--red)); }
+    #power.gentle i { background: linear-gradient(90deg, #f6e7a8, #f3c76b); }
 
     #dmg { position: absolute; top: 30%; font-size: 44px; font-weight: 900; color: #fff; text-shadow: 0 3px 0 #000a; pointer-events: none; opacity: 0; }
     #dmg.show { animation: dmg 1s ease forwards; }
@@ -52,6 +60,8 @@
 
     #intro .hero { font-size: 120px; }
     .tagline { font-style: italic; color: var(--dim); }
+    .rule { border: 2px solid var(--gold); border-radius: 12px; padding: 10px 12px; margin: 12px 0 4px; font-weight: 700; font-size: 18px; line-height: 1.35; }
+    .rule small { display: block; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; color: var(--gold); margin-bottom: 2px; }
   </style>
 </head>
 <body>
@@ -63,6 +73,7 @@
     <div id="arena">
       <div id="foe-label"></div>
       <div id="foe-name"></div>
+      <div id="foe-rule"></div>
       <div id="foe-hp"><i></i></div>
       <div id="foe-wrap"><div id="foe"></div><div id="strike" class="strike" hidden></div><div id="dmg"></div></div>
       <div id="prompt"></div>
@@ -91,6 +102,7 @@
       <div id="intro-glyph" class="hero" aria-hidden="true"></div>
       <h1 id="intro-name"></h1>
       <p id="intro-tagline" class="tagline"></p>
+      <div class="rule"><small data-copy="houseRule"></small><span id="intro-rule"></span></div>
       <div id="intro-fight" class="countdown" style="font-size:64px"></div>
     </div>
   </section>

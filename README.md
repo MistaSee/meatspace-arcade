@@ -7,7 +7,7 @@ Phone games you play with your whole arm, not just your thumbs. They open in the
 | Game | How you play |
 | --- | --- |
 | **Egg-and-Spoon Race** | Hold the phone flat like a spoon and walk 30 real steps without the egg rolling off. The phone counts your steps. Drop it and it is back to the start line. Fastest time wins. |
-| **Shake Duel** | Tilt the phone to dodge incoming blows, then shake it hard to punch. A ladder of daft opponents, from a duck to an extremely large swan. |
+| **Shake Duel** | Tilt the phone to dodge incoming blows, then shake it hard to punch. Eleven opponents, each with a house rule that changes the fight: gentle shakes only, freeze, hide the phone face down, arrows that lie. Then made-up opponents for ever. |
 | **Tilt Lab** | Not a game: a test bench for tuning tilt and shake on a real phone. |
 
 Tilt, shake and step counting only work on a secure (https) address, so phones need the public site or another https address. On a computer, keys stand in: arrows tilt, space shakes, Enter takes a step. Add `?debug` to a game's address to see the raw sensor numbers.
