@@ -1,6 +1,6 @@
-// Meatspace Arcade (working title): a tiny server for tap-to-play games.
-// Serves the games, keeps one shared scoreboard, makes QR codes for coin stickers,
-// and turns short tag URLs (/c/<id>) into the right game.
+// Meatspace Arcade (working title): a tiny local server for the games.
+// Serves the site, keeps a shared scoreboard per game, and makes QR codes.
+// The public site (GitHub Pages) is static, so there the scoreboards stay on each phone.
 import http from 'node:http';
 import { readFile, writeFile, mkdir, stat, rename } from 'node:fs/promises';
 import { networkInterfaces } from 'node:os';
@@ -34,8 +34,11 @@ function lanAddress() {
 }
 const BASE = (process.env.PUBLIC_BASE || `http://${lanAddress()}:${PORT}`).replace(/\/$/, '');
 
-// Which game each tag opens. Every coin opens the Cursed Coin for now.
-const gameFor = () => '/games/cursed-coin/';
+// Each game's scoreboard, and whether a lower score is better (a race time) or worse.
+const GAMES = {
+  'egg-race': { lowerIsBetter: true },
+  'shake-duel': { lowerIsBetter: false },
+};
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -70,8 +73,13 @@ function persist() {
     .catch(err => console.error('Could not save scores:', err.message));
 }
 
-const ranked = () => scores.slice().sort((a, b) => b.score - a.score || a.at.localeCompare(b.at));
-const shown = ({ id, name, score, depth, gold, killer, coin, at }) => ({ id, name, score, depth, gold, killer, coin, at });
+function ranked(game) {
+  const dir = GAMES[game]?.lowerIsBetter ? 1 : -1;
+  return scores
+    .filter(s => s.game === game)
+    .sort((a, b) => dir * (a.score - b.score) || a.at.localeCompare(b.at));
+}
+const shown = ({ id, name, score, detail, at }) => ({ id, name, score, detail, at });
 
 function cleanName(n) {
   if (typeof n !== 'string') return null;
@@ -97,23 +105,25 @@ async function postScore(req, res) {
   let d;
   try { d = JSON.parse(body); } catch { return json(res, 400, { error: 'Bad JSON.' }); }
 
+  const game = typeof d.game === 'string' && Object.hasOwn(GAMES, d.game) ? d.game : null;
   const name = cleanName(d.name);
-  const score = int(d.score, 0, 1_000_000);
-  const depth = int(d.depth, 1, 9999);
-  const gold = int(d.gold, 0, 1_000_000);
-  const killer = typeof d.killer === 'string' && /^[a-z]{1,12}$/.test(d.killer) ? d.killer : 'unknown';
-  const coin = typeof d.coin === 'string' && /^[A-Za-z0-9-]{1,16}$/.test(d.coin) ? d.coin : null;
-  if (!name || score === null || depth === null || gold === null) {
+  const score = int(d.score, 0, 10_000_000);
+  const detail = typeof d.detail === 'string' ? d.detail.replace(/[\u0000-\u001f\u007f<>]/g, '').slice(0, 60) : '';
+  if (!game || !name || score === null) {
     return json(res, 400, { error: 'That score does not look right.' });
   }
 
   lastPost.set(who, now);
-  const entry = { id: randomUUID().slice(0, 8), name, score, depth, gold, killer, coin, at: new Date().toISOString() };
+  const entry = { id: randomUUID().slice(0, 8), game, name, score, detail, at: new Date().toISOString() };
   scores.push(entry);
-  if (scores.length > MAX_KEPT) scores = ranked().slice(0, MAX_KEPT);
+  const forGame = ranked(game);
+  if (forGame.length > MAX_KEPT) {
+    const keep = new Set(forGame.slice(0, MAX_KEPT));
+    scores = scores.filter(s => s.game !== game || keep.has(s));
+  }
   persist();
 
-  const all = ranked();
+  const all = ranked(game);
   const rank = all.findIndex(s => s.id === entry.id) + 1;
   return json(res, 201, { id: entry.id, rank: rank || null, top: all.slice(0, 10).map(shown) });
 }
@@ -172,14 +182,11 @@ const server = http.createServer(async (req, res) => {
 
     if (p === '/api/scores' && req.method === 'GET') {
       const limit = int(url.searchParams.get('limit'), 1, 50) ?? 10;
-      return json(res, 200, { top: ranked().slice(0, limit).map(shown) });
+      return json(res, 200, { top: ranked(url.searchParams.get('game')).slice(0, limit).map(shown) });
     }
     if (p === '/api/scores' && req.method === 'POST') return await postScore(req, res);
     if (p === '/api/info') return json(res, 200, { base: BASE });
     if (p === '/qr.svg') return await qr(res, url.searchParams.get('path'));
-
-    const tag = p.match(/^\/c\/([A-Za-z0-9-]{1,16})\/?$/);
-    if (tag) return redirect(res, `${gameFor(tag[1])}?coin=${tag[1]}`);
 
     if (req.method !== 'GET' && req.method !== 'HEAD') return text(res, 405, 'Method not allowed');
     return await serveStatic(req, res, p, url.search);
@@ -194,5 +201,4 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`Arcade running.`);
   console.log(`  On this PC:                  http://localhost:${PORT}/`);
   console.log(`  On a phone on the same Wi-Fi: ${BASE}/`);
-  console.log(`  Coin stickers to print:       http://localhost:${PORT}/print/`);
 });

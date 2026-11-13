@@ -11,55 +11,50 @@
     body { margin: 0; background: var(--bg); color: var(--ink); font-family: "Trebuchet MS", "Segoe UI", system-ui, sans-serif; }
     main { max-width: 760px; margin: 0 auto; padding: 32px 16px 48px; }
     h1 { color: var(--gold); margin: 0 0 4px; font-size: 34px; }
-    .sub { color: var(--dim); margin: 0 0 28px; }
-    .game { display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: center; background: var(--panel); border-radius: 18px; padding: 22px; }
+    .sub { color: var(--dim); margin: 0 0 28px; line-height: 1.45; }
+    .game { display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: center; background: var(--panel); border-radius: 18px; padding: 22px; margin-bottom: 18px; }
     .game h2 { margin: 0 0 6px; font-size: 24px; }
     .game p { margin: 0 0 14px; color: var(--dim); line-height: 1.45; }
-    .qr { background: #fff; padding: 12px; border-radius: 12px; width: 196px; }
-    .qr img { display: block; width: 172px; height: 172px; }
-    .qr small { display: block; color: #333; text-align: center; font-size: 12px; margin-top: 6px; word-break: break-all; }
-    a.button { display: inline-block; margin: 0 8px 8px 0; padding: 11px 20px; border-radius: 999px; background: var(--gold); color: #2a1a05; font-weight: 800; text-decoration: none; }
-    a.quiet { background: transparent; color: var(--gold); border: 2px solid var(--gold); }
+    .qr { background: #fff; padding: 10px; border-radius: 12px; width: 150px; }
+    .qr img { display: block; width: 130px; height: 130px; }
+    a.button { display: inline-block; padding: 11px 22px; border-radius: 999px; background: var(--gold); color: #2a1a05; font-weight: 800; text-decoration: none; }
     .note { color: var(--dim); font-size: 14px; margin-top: 28px; line-height: 1.5; }
-    @media (max-width: 560px) { .game { grid-template-columns: 1fr; } .qr { margin: 0 auto; } }
+    @media (max-width: 560px) { .game { grid-template-columns: 1fr; } .qr { display: none; } }
   </style>
 </head>
 <body>
   <main>
     <h1>Meatspace Arcade</h1>
-    <p class="sub">Working title. Games that live in things you can pick up.</p>
+    <p class="sub">Working title. Games you play with your whole arm, not just your thumbs. Open them on a phone.</p>
 
     <section class="game">
       <div>
-        <h2>🪙 The Cursed Coin</h2>
-        <p>A pocket dungeon crawl. Every few turns the coin flips itself, and the dungeon has to do what it says.</p>
-        <a class="button" href="/c/1">Play</a>
-        <a class="button quiet" href="/print/">Print coin stickers</a>
+        <h2>🥚🥄 Egg-and-Spoon Race</h2>
+        <p>Your phone is the spoon. Walk 30 real steps without the egg rolling off. Drop it and it is back to the start line.</p>
+        <a class="button" href="games/egg-race/">Play</a>
       </div>
-      <div class="qr">
-        <img id="qr" src="/qr.svg?path=/c/1" alt="QR code that opens coin #1">
-        <small id="qr-url">Scan with your phone</small>
-      </div>
+      <div class="qr"><img src="qr/egg-race.svg" alt="QR code for the Egg-and-Spoon Race"></div>
     </section>
 
-    <section class="game" style="margin-top:18px">
+    <section class="game">
+      <div>
+        <h2>🥊 Shake Duel</h2>
+        <p>Tilt to dodge, shake to punch, against a duck, an accountant, a haunted bin and worse.</p>
+        <a class="button" href="games/shake-duel/">Play</a>
+      </div>
+      <div class="qr"><img src="qr/shake-duel.svg" alt="QR code for Shake Duel"></div>
+    </section>
+
+    <section class="game">
       <div>
         <h2>📱 Tilt Lab</h2>
-        <p>Not a game: a test bench. Tilt the phone to roll a coin into a hole, shake to flip it, and see what the motion sensors report.</p>
-        <a class="button" href="/lab/">Open</a>
+        <p>Not a game: a test bench. Roll a coin into a hole and see what your phone's motion sensors report.</p>
+        <a class="button" href="lab/">Open</a>
       </div>
-      <div class="qr">
-        <img src="/qr.svg?path=/lab/" alt="QR code that opens the Tilt Lab">
-        <small>Needs an https address on a phone</small>
-      </div>
+      <div class="qr"><img src="qr/lab.svg" alt="QR code for the Tilt Lab"></div>
     </section>
 
-    <p class="note">Point your phone's camera at the code to play on your phone. The phone needs to be on the same Wi-Fi as this computer.</p>
+    <p class="note">On a computer? Point your phone's camera at a code. Android phones work best; iPhones will ask permission to use motion.</p>
   </main>
-  <script>
-    fetch('/api/info').then(r => r.json()).then(d => {
-      document.getElementById('qr-url').textContent = d.base + '/c/1';
-    }).catch(() => {});
-  </script>
 </body>
 </html>

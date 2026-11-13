@@ -1,44 +1,40 @@
 # Meatspace Arcade (working title)
 
-Games that live in things you can pick up. Scan or tap an object with your phone and a game opens in the browser. No app.
+Phone games you play with your whole arm, not just your thumbs. They open in the phone's browser, with no app to install.
 
-The first one is **The Cursed Coin**: a pocket dungeon crawl. Every 12 turns the coin flips itself, and the dungeon has to do what it says. Heads helps, tails doesn't, and both are silly. Runs last from 30 seconds to a few minutes. Every score goes on one shared scoreboard, the Hall of the Cursed.
+**Play:** https://mistasee.github.io/meatspace-arcade/
 
-## Run it
+| Game | How you play |
+| --- | --- |
+| **Egg-and-Spoon Race** | Hold the phone flat like a spoon and walk 30 real steps without the egg rolling off. The phone counts your steps. Drop it and it is back to the start line. Fastest time wins. |
+| **Shake Duel** | Tilt the phone to dodge incoming blows, then shake it hard to punch. A ladder of daft opponents, from a duck to an extremely large swan. |
+| **Tilt Lab** | Not a game: a test bench for tuning tilt and shake on a real phone. |
+
+Tilt, shake and step counting only work on a secure (https) address, so phones need the public site or another https address. On a computer, keys stand in: arrows tilt, space shakes, Enter takes a step. Add `?debug` to a game's address to see the raw sensor numbers.
+
+## Run it locally
 
 ```bash
 npm install
 npm start
 ```
 
-The server prints three addresses: one for this computer, one for phones on the same Wi-Fi, and the sticker sheet.
-
-## Make a coin
-
-1. Print the coin blank: `public/print/cursed-coin-blank.stl` (44 mm across, 3.6 mm thick). It prints flat, recess up, no supports.
-2. Open `/print/` and print the sticker sheet at 100% scale. Each sticker is numbered and opens its own coin, so the Hall shows which coin a score came from.
-3. Cut out a sticker and stick it in the recess.
-
-The recess is 0.8 mm deep so that an NFC sticker can go underneath the paper one later. Then the same coin works by scan or by tap.
-
-To change the coin's size, edit the numbers at the top of `tools/make-coin-stl.js` and run `npm run coin`. There is also an OpenSCAD version, `cursed-coin-blank.scad`.
+The local server also keeps a shared scoreboard for each game. The public site is static, so there each phone keeps its own scores for now.
 
 ## How it fits together
 
 | Path | What it is |
 | --- | --- |
-| `server.js` | Serves the games, keeps the scoreboard in `data/scores.json`, makes QR codes, and sends `/c/<id>` to the right game. |
-| `public/games/cursed-coin/` | The game. All player-facing words are in `copy.js`. |
-| `public/print/` | Sticker sheet and coin blank. |
-| `tools/make-coin-stl.js` | Generates the coin blank. |
-
-Tags and QR codes hold a short address like `http://<host>/c/7`, not the game itself. The same coin keeps working when the game is updated.
-
-To run it somewhere other than your Wi-Fi, set `PUBLIC_BASE` to the public address before starting, so the QR codes point there.
+| `public/` | The website. Published to GitHub Pages on every push to `main`. |
+| `public/shared/motion.js` | Tilt, shake and footstep sensing, shared by the games. |
+| `public/shared/hall.js` | Scoreboards: shared when the local server is running, on the phone otherwise. |
+| `public/games/<game>/copy.js` | Every word the player sees in that game. |
+| `server.js` | Local server with the shared scoreboards. |
+| `tools/make-qr.js` | Makes the home page's QR codes. Set `PUBLIC_BASE` if the site moves. |
+| `physical/` | A 3D-printable 44 mm token with a recess for a QR or NFC sticker (`npm run coin` remakes it). |
 
 ## Not decided yet
 
-- Name: Meatspace Arcade and Vibe Arcade are both working titles.
-- Where it lives on the internet. Until that's chosen, it only works for phones on the same Wi-Fi as the computer running it.
-- Licences for code, art and 3D files.
-- Whether the scoreboard needs protecting. A determined person can post a fake score.
+- Name: Meatspace Arcade is a working title.
+- A shared scoreboard on the public site needs a small server somewhere.
+- Licences for code, art and 3D files. Until one is chosen, nothing here is licensed for reuse.

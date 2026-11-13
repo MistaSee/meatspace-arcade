@@ -15,7 +15,7 @@ const RECESS_DIAMETER = 38.4; // 38 mm sticker plus a little clearance
 const RECESS_DEPTH = 0.8;    // room for a paper sticker on top of an NFC sticker
 const SEGMENTS = 160;
 
-const OUT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public', 'print');
+const OUT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'physical');
 
 const R = COIN_DIAMETER / 2, r = RECESS_DIAMETER / 2, T = THICKNESS, d = RECESS_DEPTH;
 

@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#1b1420">
+  <title>Shake Duel</title>
+  <link rel="stylesheet" href="../../shared/arcade.css">
+  <style>
+    header { display: flex; align-items: center; justify-content: space-between; padding: 12px 2px 6px; }
+    #hearts { font-size: 26px; letter-spacing: 3px; }
+    #hearts .on { color: var(--red); } #hearts .off { color: #4a3b4f; }
+    #score { font-size: 22px; font-weight: 800; color: var(--gold); font-variant-numeric: tabular-nums; }
+
+    #arena { flex: 1; min-height: 0; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; }
+    #arena.hurt { animation: hurt .35s ease; }
+    @keyframes hurt { 0%,100% { transform: none; } 20% { transform: translate(-10px, 4px); } 40% { transform: translate(9px, -3px); } 60% { transform: translate(-6px, 2px); } 80% { transform: translate(4px, 0); } }
+    #arena.hurt::after { content: ""; position: absolute; inset: 0; background: #e4572e44; pointer-events: none; }
+
+    #foe-label { font-size: 13px; color: var(--dim); }
+    #foe-name { font-size: 20px; font-weight: 800; text-align: center; padding: 0 12px; min-height: 26px; }
+    #foe-hp { width: 70%; height: 12px; border-radius: 6px; background: #ffffff14; overflow: hidden; margin: 8px 0 12px; }
+    #foe-hp i { display: block; height: 100%; width: 100%; background: var(--red); transition: width .3s ease; }
+
+    #foe-wrap { position: relative; width: 100%; display: grid; place-items: center; height: 42%; }
+    #foe { font-size: min(36vw, 170px); line-height: 1; transition: transform .25s ease; animation: bob 1.6s ease-in-out infinite; }
+    @keyframes bob { 50% { translate: 0 -8px; } }
+    #foe.lean-left { transform: translateX(-18%) rotate(-14deg) scale(1.05); }
+    #foe.lean-right { transform: translateX(18%) rotate(14deg) scale(1.05); }
+    #foe.recoil { transform: translateY(-6%) rotate(8deg) scale(0.88); }
+    #foe.out { transform: translateY(40%) rotate(80deg) scale(0.6); opacity: .25; transition: transform .6s ease, opacity .6s ease; }
+
+    .strike { position: absolute; top: 40%; font-size: 64px; font-weight: 900; color: var(--red); text-shadow: 0 3px 0 #0008; animation: strike .5s ease-in-out infinite alternate; }
+    .strike.left { left: 4%; } .strike.right { right: 4%; }
+    @keyframes strike { from { opacity: .5; } to { opacity: 1; } }
+
+    #prompt { font-size: 54px; font-weight: 900; letter-spacing: 2px; min-height: 66px; color: var(--gold); text-shadow: 0 4px 0 #0008; }
+    #prompt.big { animation: pop .35s ease; }
+    @keyframes pop { from { transform: scale(1.6); opacity: 0; } to { transform: none; opacity: 1; } }
+    #prompt.danger { color: var(--blue); }
+
+    #power { width: 80%; height: 18px; border-radius: 9px; background: #ffffff14; overflow: hidden; margin-top: 10px; visibility: hidden; }
+    #power.on { visibility: visible; }
+    #power i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--gold), var(--red)); }
+
+    #dmg { position: absolute; top: 30%; font-size: 44px; font-weight: 900; color: #fff; text-shadow: 0 3px 0 #000a; pointer-events: none; opacity: 0; }
+    #dmg.show { animation: dmg 1s ease forwards; }
+    @keyframes dmg { 0% { opacity: 0; transform: scale(.6); } 15% { opacity: 1; transform: scale(1.25); } 70% { opacity: 1; transform: translateY(-30px); } 100% { opacity: 0; transform: translateY(-50px); } }
+
+    footer { min-height: 84px; padding: 6px 2px 14px; }
+    #line { font-size: 18px; font-weight: 700; line-height: 1.35; text-align: center; }
+
+    #intro .hero { font-size: 120px; }
+    .tagline { font-style: italic; color: var(--dim); }
+  </style>
+</head>
+<body>
+  <main id="app">
+    <header>
+      <div id="hearts" role="img"></div>
+      <div id="score">0</div>
+    </header>
+    <div id="arena">
+      <div id="foe-label"></div>
+      <div id="foe-name"></div>
+      <div id="foe-hp"><i></i></div>
+      <div id="foe-wrap"><div id="foe"></div><div id="strike" class="strike" hidden></div><div id="dmg"></div></div>
+      <div id="prompt"></div>
+      <div id="power"><i></i></div>
+    </div>
+    <footer><div id="line" aria-live="polite"></div></footer>
+  </main>
+
+  <section id="title" class="overlay">
+    <div class="card">
+      <div class="hero" aria-hidden="true">🥊📱</div>
+      <h1 data-copy="title"></h1>
+      <p data-copy="pitch"></p>
+      <div id="how"></div>
+      <p class="dim" data-copy="safety"></p>
+      <div id="nosensors" class="warn" hidden></div>
+      <button id="start" class="primary" type="button" data-copy="start"></button>
+      <h2 data-copy="hallTitle"></h2>
+      <ol id="hall-title" class="hall"></ol>
+    </div>
+  </section>
+
+  <section id="intro" class="overlay center" hidden>
+    <div class="card">
+      <p id="intro-number" class="dim"></p>
+      <div id="intro-glyph" class="hero" aria-hidden="true"></div>
+      <h1 id="intro-name"></h1>
+      <p id="intro-tagline" class="tagline"></p>
+      <div id="intro-fight" class="countdown" style="font-size:64px"></div>
+    </div>
+  </section>
+
+  <section id="over" class="overlay" hidden>
+    <div class="card">
+      <div id="over-glyph" class="hero" aria-hidden="true"></div>
+      <h1 data-copy="overTitle"></h1>
+      <p id="over-by"></p>
+      <p id="over-epitaph" class="tagline"></p>
+      <p id="over-score" class="big-number"></p>
+      <p id="over-detail" class="sub-number"></p>
+      <form id="carve" class="carve">
+        <label for="name" data-copy="namePrompt"></label>
+        <div class="row">
+          <input id="name" maxlength="12" autocomplete="nickname" enterkeyhint="done" required>
+          <button class="primary" type="submit" data-copy="carve"></button>
+        </div>
+      </form>
+      <p id="carved" class="carved" hidden></p>
+      <h2 data-copy="hallTitle"></h2>
+      <ol id="hall-over" class="hall"></ol>
+      <button id="again" class="primary" type="button" data-copy="again"></button>
+    </div>
+  </section>
+
+  <script type="module" src="game.js"></script>
+</body>
+</html>
