@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1b1420">
+  <title>Meatspace Arcade</title>
+  <style>
+    :root { --bg: #1b1420; --panel: #2a1f31; --ink: #f4ead5; --dim: #a8977f; --gold: #f2c14e; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font-family: "Trebuchet MS", "Segoe UI", system-ui, sans-serif; }
+    main { max-width: 760px; margin: 0 auto; padding: 32px 16px 48px; }
+    h1 { color: var(--gold); margin: 0 0 4px; font-size: 34px; }
+    .sub { color: var(--dim); margin: 0 0 28px; }
+    .game { display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: center; background: var(--panel); border-radius: 18px; padding: 22px; }
+    .game h2 { margin: 0 0 6px; font-size: 24px; }
+    .game p { margin: 0 0 14px; color: var(--dim); line-height: 1.45; }
+    .qr { background: #fff; padding: 12px; border-radius: 12px; width: 196px; }
+    .qr img { display: block; width: 172px; height: 172px; }
+    .qr small { display: block; color: #333; text-align: center; font-size: 12px; margin-top: 6px; word-break: break-all; }
+    a.button { display: inline-block; margin: 0 8px 8px 0; padding: 11px 20px; border-radius: 999px; background: var(--gold); color: #2a1a05; font-weight: 800; text-decoration: none; }
+    a.quiet { background: transparent; color: var(--gold); border: 2px solid var(--gold); }
+    .note { color: var(--dim); font-size: 14px; margin-top: 28px; line-height: 1.5; }
+    @media (max-width: 560px) { .game { grid-template-columns: 1fr; } .qr { margin: 0 auto; } }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Meatspace Arcade</h1>
+    <p class="sub">Working title. Games that live in things you can pick up.</p>
+
+    <section class="game">
+      <div>
+        <h2>🪙 The Cursed Coin</h2>
+        <p>A pocket dungeon crawl. Every few turns the coin flips itself, and the dungeon has to do what it says.</p>
+        <a class="button" href="/c/1">Play</a>
+        <a class="button quiet" href="/print/">Print coin stickers</a>
+      </div>
+      <div class="qr">
+        <img id="qr" src="/qr.svg?path=/c/1" alt="QR code that opens coin #1">
+        <small id="qr-url">Scan with your phone</small>
+      </div>
+    </section>
+
+    <p class="note">Point your phone's camera at the code to play on your phone. The phone needs to be on the same Wi-Fi as this computer.</p>
+  </main>
+  <script>
+    fetch('/api/info').then(r => r.json()).then(d => {
+      document.getElementById('qr-url').textContent = d.base + '/c/1';
+    }).catch(() => {});
+  </script>
+</body>
+</html>
