@@ -6,11 +6,14 @@
 //   motion.onSample = ({ accel, dt }) => ...       // every motion reading
 //   motion.onStep = strength => ...                // every footstep
 //   motion.faceDown()                              // true while the screen faces the floor
+//   motion.faceUp()                                // true while the screen faces the sky
+//   motion.resetTurn(); motion.turned()            // degrees you have turned on the spot since the reset
+//   motion.raw()                                   // { alpha, beta, gamma } as the phone reports them, or null
 //
 // Tilt comes from device orientation; shake and steps from device motion.
 // Both only exist on secure (https) pages. Without them, keys stand in:
 // arrows tilt, space shakes (Shift+space gently), Enter takes a step,
-// holding F counts as face down.
+// holding F counts as face down, holding U as face up, holding T turns you on the spot.
 
 const G = 9.81;
 
@@ -25,10 +28,10 @@ export function createMotion({ keyTilt = 15 } = {}) {
     stepLow: 0.5,              // how far below it must dip first
     onSample: null,
     onStep: null,
-    start, level, read, stillFor, faceDown,
+    start, level, read, stillFor, faceDown, faceUp, resetTurn, turned, raw,
   };
 
-  let beta = null, gamma = null, base = null;
+  let alpha = null, beta = null, gamma = null, base = null, turnSum = 0;
   const keys = new Set();
   let lpX = 0, lpY = 0, lpZ = 0, haveLp = false;
   let baseline = G, smooth = G, armed = false, lastStep = 0, lastMotion = 0;
@@ -41,6 +44,10 @@ export function createMotion({ keyTilt = 15 } = {}) {
 
   function onOrientation(e) {
     if (e.beta === null || e.gamma === null) return;
+    if (e.alpha !== null && e.alpha !== undefined) {
+      if (alpha !== null) { let d = e.alpha - alpha; if (d > 180) d -= 360; if (d < -180) d += 360; turnSum += d; }
+      alpha = e.alpha;
+    }
     beta = e.beta; gamma = e.gamma;
     m.live = true;
     if (!base) level();
@@ -97,6 +104,7 @@ export function createMotion({ keyTilt = 15 } = {}) {
       if (keys.has('ArrowRight')) tx += keyTilt;
       if (keys.has('ArrowUp')) ty -= keyTilt;
       if (keys.has('ArrowDown')) ty += keyTilt;
+      if (keys.has('KeyT')) turnSum += 6;
       m.tilt.x += (tx - m.tilt.x) * 0.25;
       m.tilt.y += (ty - m.tilt.y) * 0.25;
     }
@@ -108,6 +116,16 @@ export function createMotion({ keyTilt = 15 } = {}) {
     if (m.live && beta !== null) return Math.abs(beta) > 125 && Math.abs(gamma) < 65;
     return keys.has('KeyF');
   }
+
+  // Screen facing the sky: lying flat, or close to it.
+  function faceUp() {
+    if (m.live && beta !== null) return Math.abs(beta) < 30 && Math.abs(gamma) < 30;
+    return keys.has('KeyU');
+  }
+
+  function resetTurn() { turnSum = 0; }
+  function turned() { return Math.abs(turnSum); }
+  function raw() { return m.live ? { alpha, beta, gamma } : null; }
 
   // Milliseconds since the phone last moved noticeably.
   function stillFor() { return performance.now() - quietSince; }
@@ -144,7 +162,7 @@ export function createMotion({ keyTilt = 15 } = {}) {
   addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT') return;
     if (e.key.startsWith('Arrow')) { keys.add(e.key); e.preventDefault(); }
-    else if (e.code === 'KeyF') keys.add('KeyF');
+    else if (e.code === 'KeyF' || e.code === 'KeyU' || e.code === 'KeyT') keys.add(e.code);
     else if (e.key === ' ' && !e.repeat) {
       e.preventDefault();
       quietSince = performance.now();

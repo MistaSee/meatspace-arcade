@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#140d10">
+  <title>The Goblin King Demands</title>
+  <link rel="stylesheet" href="../../shared/arcade.css">
+  <link rel="stylesheet" href="../../shared/comic.css">
+  <style>
+    #stage { background: radial-gradient(ellipse at 50% 45%, #4a2a5a, #1a0f24 70%); }
+    #fake { position: absolute; left: 50%; top: 47%; width: 70vmin; height: 70vmin; translate: -50% -50%; border-radius: 30%; background: #333; transition: background .15s; }
+    #fake[hidden] { display: none; }
+
+    /* The ring you fill with the thing he asked for. */
+    #ring { position: absolute; left: 50%; top: 47%; width: 46vmin; height: 46vmin; translate: -50% -50%; border-radius: 50%; z-index: 2; pointer-events: none;
+      --p: 0; --c: #fff; background: conic-gradient(var(--c) calc(var(--p) * 360deg), #0008 0);
+      -webkit-mask: radial-gradient(circle, #0000 61%, #000 62%); mask: radial-gradient(circle, #0000 61%, #000 62%);
+      filter: drop-shadow(0 0 10px var(--c)); transition: transform .2s; }
+    #ring-edge { position: absolute; left: 50%; top: 47%; width: 46vmin; height: 46vmin; translate: -50% -50%; border-radius: 50%; z-index: 2; pointer-events: none;
+      border: 4px dashed #fff; box-shadow: 0 0 0 4px #000, inset 0 0 0 4px #000; animation: spin 14s linear infinite; }
+    @keyframes spin { to { rotate: 360deg; } }
+    #stage.hot #ring-edge { border-style: solid; border-color: var(--target, #fff); animation-duration: 2s; }
+    #stage.idle #ring, #stage.idle #ring-edge { display: none; }
+
+    #king { position: relative; width: 132px; height: 132px; margin: -6px 0 -10px -8px; transform-origin: 50% 90%; animation: sit 1.6s ease-in-out infinite; }
+    #king img, #king .glyph { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 5px 0 #0009); font-size: 90px; }
+    @keyframes sit { 50% { transform: scale(1.03, .97); } }
+    #king.happy { animation: bounce .35s ease-in-out infinite alternate; }
+    @keyframes bounce { to { transform: translateY(-14px) rotate(4deg); } }
+    #king.angry { animation: stamp .12s linear infinite; }
+    @keyframes stamp { 0%,100% { transform: translate(-3px, 0) rotate(-3deg); } 50% { transform: translate(3px, 3px) rotate(3deg); } }
+    #plate { display: flex; align-items: flex-start; gap: 4px; min-width: 0; }
+    #plate .words { padding-top: 8px; min-width: 0; }
+    #time { margin: 4px 6% 0; }
+    #wanted { font-family: var(--comic); font-size: 40px; line-height: 1; letter-spacing: 1px; -webkit-text-stroke: 2px #000; paint-order: stroke fill; text-shadow: 0 4px 0 #000; text-transform: uppercase; min-height: 40px; }
+  </style>
+</head>
+<body>
+  <div id="stage" class="idle">
+    <video class="feed" id="feed" playsinline muted hidden></video>
+    <div id="fake" hidden></div>
+    <div id="vignette"></div>
+    <div id="ring"></div>
+    <div id="ring-edge"></div>
+    <main id="app">
+      <header id="hud">
+        <div id="plate">
+          <div id="king"></div>
+          <div class="words">
+            <div class="label" id="round"></div>
+            <div id="wanted"></div>
+          </div>
+        </div>
+        <div id="side">
+          <div id="score">0</div>
+          <div id="hearts"></div>
+        </div>
+      </header>
+      <div class="bar" id="time"><i></i></div>
+      <div class="gap"></div>
+      <footer id="bottom">
+        <div id="box"><span id="line" aria-hidden="true"></span><span id="sr" class="sr" aria-live="polite"></span></div>
+      </footer>
+    </main>
+    <div id="prompt" class="low"></div>
+    <div id="pops"></div>
+    <canvas id="fx"></canvas>
+    <div id="flash"></div>
+  </div>
+
+  <section id="title" class="overlay">
+    <a class="back" href="../../">‹ Arcade</a>
+    <div class="card">
+      <div class="logo small"><span>THE GOBLIN</span><span>KING DEMANDS</span></div>
+      <div id="title-art"></div>
+      <p class="pitch" data-copy="pitch"></p>
+      <div id="nocamera" class="warn" hidden></div>
+      <button id="start" class="primary mega" type="button" data-copy="start"></button>
+      <details class="how" open><summary data-copy="howTitle"></summary><div data-copy="how"></div><p class="dim" data-copy="safety"></p></details>
+      <h2 data-copy="hallTitle"></h2>
+      <ol id="hall-title" class="hall"></ol>
+    </div>
+  </section>
+
+  <script type="module" src="game.js"></script>
+</body>
+</html>

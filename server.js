@@ -12,6 +12,7 @@ import QRCode from 'qrcode';
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(ROOT, 'public');
 const DATA = path.join(ROOT, 'data');
+const TESTS = path.join(ROOT, 'tools', 'test');
 const SCORES_FILE = path.join(DATA, 'scores.json');
 const PORT = Number(process.env.PORT) || 8770;
 const MAX_KEPT = 500;
@@ -38,6 +39,14 @@ const BASE = (process.env.PUBLIC_BASE || `http://${lanAddress()}:${PORT}`).repla
 const GAMES = {
   'egg-race': { lowerIsBetter: true },
   'shake-duel': { lowerIsBetter: false },
+  'goblin-king': { lowerIsBetter: false },
+  'ghost-census': { lowerIsBetter: false },
+  'biscuit-siege': { lowerIsBetter: false },
+  'room-rumble': { lowerIsBetter: false },
+  'pickle-heist': { lowerIsBetter: false },
+  'wrong-door': { lowerIsBetter: false },
+  'staring-contest': { lowerIsBetter: false },
+  'wizard-hands': { lowerIsBetter: false },
 };
 
 const TYPES = {
@@ -48,6 +57,10 @@ const TYPES = {
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.mp3': 'audio/mpeg',
+  '.wasm': 'application/wasm',
+  '.mjs': 'text/javascript; charset=utf-8',
   '.ico': 'image/x-icon',
   '.stl': 'model/stl',
   '.scad': 'text/plain; charset=utf-8',
@@ -154,11 +167,11 @@ async function qr(res, p) {
   res.end(svg);
 }
 
-async function serveStatic(req, res, pathname, search) {
+async function serveStatic(req, res, pathname, search, root = PUBLIC) {
   let rel;
   try { rel = decodeURIComponent(pathname); } catch { return text(res, 400, 'Bad path'); }
-  let file = path.normalize(path.join(PUBLIC, rel));
-  if (file !== PUBLIC && !file.startsWith(PUBLIC + path.sep)) return text(res, 403, 'No.');
+  let file = path.normalize(path.join(root, rel));
+  if (file !== root && !file.startsWith(root + path.sep)) return text(res, 403, 'No.');
 
   let st = await stat(file).catch(() => null);
   if (st?.isDirectory()) {
@@ -189,6 +202,8 @@ const server = http.createServer(async (req, res) => {
     if (p === '/qr.svg') return await qr(res, url.searchParams.get('path'));
 
     if (req.method !== 'GET' && req.method !== 'HEAD') return text(res, 405, 'Method not allowed');
+    // Pretend-phone scripts for automated checks. Only this local server has them; the public site does not.
+    if (p.startsWith('/__test/')) return await serveStatic(req, res, p.slice('/__test'.length), url.search, TESTS);
     return await serveStatic(req, res, p, url.search);
   } catch (err) {
     console.error(err);
