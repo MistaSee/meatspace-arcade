@@ -28,10 +28,15 @@ const PLAIN_LIMIT = 40;             // seconds: it comes loose anyway
 const TIP = [[0, -14], [2.5, 16], [5.5, -26], [8.5, 38], [11.5, 90], [15, 90], [17.5, 180], [21.5, 180], [24.5, 360], [27, 360]];
 const SLIDE = 1.9;                  // how hard a tilted court drags the ball sideways
 // Stage 3
-const SWING = 13;                   // m/s² that counts as a swing
-const SWING_REST = 0.35;            // seconds before another swing counts
-const REACH_UP = 0.66, REACH_ACROSS = 0.5;    // how near the tomato must be to whack it
-const SOGGY_SPEED = 0.95;
+const SWING = 11;                   // m/s² that counts as a swing
+const SWING_REARM = 5;              // the phone has to calm down to this before another swing counts
+const SWING_REST = 0.4;             // and this many seconds have to pass
+const SWING_LIVE = 0.3;             // a swing stays good this long, so being a touch early still connects
+const STEER_HOLD = 5;               // m/s²: above this the phone is being thrown about and its steering is not trusted
+const REACH_UP = 0.9, REACH_ACROSS = 0.72;    // how near the tomato must be: about where fist and tomato touch
+const REACH_LATE = 0.2;             // and how far past the fist still counts
+const SOGGY_SPEED = 0.85;
+const HIT_STOP = 0.07;              // seconds everything freezes on a good whack, so it lands
 const WHACKS = 6;                   // the last of these lands on Gary
 
 // ---------- letters ----------
@@ -162,7 +167,8 @@ const S = {
   shake: 0,
   hint: '', hintFor: 0,
   shards: [], stains: [], words: [],
-  whacks: 0, swingRest: 0, jab: 0, lunge: 0, soggy: false, taught: false, garyOut: 0,
+  whacks: 0, swingRest: 0, swingLive: 0, steerHold: 0, freeze: 0, inReach: false, jab: 0, lunge: 0, soggy: false, taught: false, garyOut: 0,
+  slow: 0, lite: false,           // on a phone that cannot keep up, the comic drops some of its decoration
   boil: 0, boilSeed: 1,
   started: false, noSensor: false,
 };
@@ -254,7 +260,9 @@ function tomatoFromGary() {
   const b = S.ball;
   b.x = S.rival;
   b.y = -BAT_Y + 0.35;
-  const aim = clamp(S.bat + (Math.random() - 0.5) * 1.1, -HW + 0.3, HW - 0.3);
+  // The first few come down close to your fist. Later ones make you reach.
+  const spread = S.whacks < 3 ? 0.6 : 1.1;
+  const aim = clamp(S.bat + (Math.random() - 0.5) * spread, -HW + 0.3, HW - 0.3);
   const time = (BAT_Y - b.y) / SOGGY_SPEED;
   b.vx = (aim - b.x) / time;
   b.vy = SOGGY_SPEED;
@@ -265,17 +273,34 @@ function tomatoFromGary() {
   sfx.play('boing', { volume: 0.5 });
 }
 
+// Is the tomato where the fist can get it?
+function reachable() {
+  const b = S.ball;
+  return b.live && b.vy > 0 && b.y > BAT_Y - REACH_UP && b.y < BAT_Y + REACH_LATE && Math.abs(b.x - S.bat) < REACH_ACROSS;
+}
+
+// The phone was swung. It stays "swinging" for a moment, so a swing that starts just before
+// the tomato arrives still connects.
 function swing() {
   if (S.stage !== 'whack' || S.swingRest > 0) return;
   S.swingRest = SWING_REST;
+  S.swingLive = SWING_LIVE;
+  S.steerHold = 0.3;
   S.jab = 1;
+  sfx.play('whoosh', { volume: 0.6 });
+  if (reachable()) whack();
+}
+
+function whack() {
   const b = S.ball;
-  const inReach = b.live && b.vy > 0 && b.y > BAT_Y - REACH_UP && b.y < BAT_Y + 0.15 && Math.abs(b.x - S.bat) < REACH_ACROSS;
-  if (!inReach) { sfx.play('whoosh', { volume: 0.7 }); return; }
+  S.swingLive = 0;
   S.whacks++;
   S.taught = true;
   S.soggy = false;
+  S.inReach = false;
   S.shake = 0.09;
+  S.freeze = HIT_STOP;
+  S.jab = 1;
   const last = S.whacks >= WHACKS;
   // Back up the court, fast. The last one goes straight for Gary's face.
   const aim = last ? S.rival : clamp(S.rival + (Math.random() < 0.5 ? -1 : 1) * (0.25 + Math.random() * 0.4), -HW + 0.3, HW - 0.3);
@@ -293,12 +318,14 @@ function swing() {
 function playTomato(dt) {
   const b = S.ball;
   S.swingRest = Math.max(0, S.swingRest - dt);
-  S.jab = Math.max(0, S.jab - dt * 5);
+  S.swingLive = Math.max(0, S.swingLive - dt);
+  S.jab = Math.max(0, S.jab - dt * 3.3);
   S.lunge = Math.max(0, S.lunge - dt * 3);
   // Gary shuffles about under where it is going to come down.
   const want = b.live && b.vy < 0 ? b.x : Math.sin(S.t * 0.9) * 0.5;
   S.rival += clamp(want - S.rival, -1.3 * dt, 1.3 * dt);
   if (!b.live) {
+    S.inReach = false;
     S.serveIn -= dt;
     if (S.serveIn <= 0) tomatoFromGary();
     return;
@@ -307,6 +334,11 @@ function playTomato(dt) {
   b.y += b.vy * dt;
   b.spin += (S.soggy ? 2 : 14) * dt;
   if (Math.abs(b.x) > HW - 0.15) { b.x = Math.sign(b.x) * (HW - 0.15); b.vx = -b.vx; }
+  // A buzz the moment it comes within reach: that is when to swing.
+  const was = S.inReach;
+  S.inReach = reachable();
+  if (S.inReach && !was) buzz(15);
+  if (S.inReach && S.swingLive > 0) return whack();
   if (b.vy > 0 && !S.taught && b.y > BAT_Y - REACH_UP) hint(COPY.swing, 1.2);
   if (b.vy < 0 && b.y < -BAT_Y + 0.4) {
     if (b.last) {
@@ -338,6 +370,8 @@ function playTomato(dt) {
 
 // ---------- every frame: the logic ----------
 function update(dt) {
+  // A good whack stops the world for a beat.
+  if (S.freeze > 0) { S.freeze -= dt; return; }
   S.t += dt;
   S.clock += dt;
   S.hintFor = Math.max(0, S.hintFor - dt);
@@ -359,7 +393,11 @@ function update(dt) {
     roll = clamp(aim / edge, -1, 1) * STEER - S.theta;
     if (S.stage === 'whack' && b.live && b.vy > 0 && b.y > BAT_Y - 0.4 && Math.abs(b.x - S.bat) < 0.3) swing();
   }
-  S.phi += wrap(roll - S.phi) * Math.min(1, dt * 18);
+  // The steering angle comes from which way gravity pulls. A swing swamps gravity for a moment,
+  // so while the phone is being thrown about the last good angle is kept.
+  S.steerHold = Math.max(0, S.steerHold - dt);
+  const thrown = test.roll === null && !test.auto && motion.motionLive && motion.accel > STEER_HOLD;
+  if (!thrown && S.steerHold <= 0) S.phi += wrap(roll - S.phi) * Math.min(1, dt * 18);
   S.u = wrap(S.phi + S.theta);
   const edge = HW - BAT / 2;
   if (S.stage !== 'title') S.bat += (clamp(S.u / STEER, -1, 1) * edge - S.bat) * Math.min(1, dt * 16);
@@ -571,15 +609,18 @@ function drawComic() {
   // The page: yellow paper, red dots, and black speed lines that never sit still.
   g.fillStyle = '#ffd23c';
   g.fillRect(-R, -R, 2 * R, 2 * R);
-  g.save();
-  g.scale(1 / unit, 1 / unit);
-  g.globalAlpha = 0.5;
-  g.fillStyle = halftone();
-  g.fillRect(-R * unit, -R * unit, 2 * R * unit, 2 * R * unit);
-  g.restore();
+  if (!S.lite) {
+    g.save();
+    g.scale(1 / unit, 1 / unit);
+    g.globalAlpha = 0.5;
+    g.fillStyle = halftone();
+    g.fillRect(-R * unit, -R * unit, 2 * R * unit, 2 * R * unit);
+    g.restore();
+  }
   g.fillStyle = '#000';
-  for (let i = 0; i < 34; i++) {
-    const a = (i / 34) * Math.PI * 2 + rnd(S.boilSeed + i) * 0.12, w = 0.012 + rnd(S.boilSeed * 3 + i) * 0.03, r0 = 1.25 + rnd(S.boilSeed * 7 + i) * 0.7;
+  const lines = S.lite ? 16 : 34;
+  for (let i = 0; i < lines; i++) {
+    const a = (i / lines) * Math.PI * 2 + rnd(S.boilSeed + i) * 0.12, w = 0.012 + rnd(S.boilSeed * 3 + i) * 0.03, r0 = 1.25 + rnd(S.boilSeed * 7 + i) * 0.7;
     g.beginPath();
     g.moveTo(Math.cos(a - w) * R, Math.sin(a - w) * R);
     g.lineTo(Math.cos(a) * r0, Math.sin(a) * r0 * 1.5);
@@ -639,11 +680,27 @@ function drawComic() {
     g.beginPath();
     g.ellipse(b.x + 0.05, b.y + 0.2, 0.17, 0.06, 0, 0, Math.PI * 2);
     g.fill();
+    if (S.inReach) {
+      // Within reach: a jagged flash behind it says "now".
+      g.fillStyle = Math.floor(S.t * 14) % 2 ? '#ffe04a' : '#fff';
+      g.strokeStyle = '#000';
+      g.lineWidth = 0.025;
+      g.beginPath();
+      for (let i = 0; i < 20; i++) {
+        const a = (i / 20) * Math.PI * 2 + S.t * 2, r = i % 2 ? 0.3 : 0.44;
+        g.lineTo(b.x + Math.cos(a) * r, b.y + Math.sin(a) * r);
+      }
+      g.closePath();
+      g.fill();
+      g.stroke();
+    }
     const wob = S.soggy ? 1 + Math.sin(S.t * 14) * 0.09 : 1;
     picture(pictures.tomato, b.x, b.y, 0.5, b.spin, wob, 2 - wob);
   }
-  // Your fist.
-  picture(pictures.fist, S.bat, BAT_Y - 0.15 - Math.sin(S.jab * Math.PI) * 0.5, 0.95 * (1 + S.jab * 0.25), rad(S.u) * 0.5, 1, 1);
+  // Your fist. It draws back and trembles when the tomato is in reach, and punches up on a swing.
+  const windUp = S.inReach && S.jab <= 0 ? 1 : 0;
+  const punchUp = Math.sin(Math.min(1, (1 - S.jab) * 1.6) * Math.PI) * (S.jab > 0 ? 0.62 : 0);
+  picture(pictures.fist, S.bat + windUp * (Math.random() - 0.5) * 0.03, BAT_Y - 0.15 + windUp * 0.1 - punchUp, 0.95 * (1 + (S.jab > 0 ? 0.22 : 0) * Math.sin(S.jab * Math.PI)), rad(S.u) * 0.5, 1, 1);
   g.restore();
   g.strokeRect(-HW - 0.04, -HH - 0.04, 2 * HW + 0.08, 2 * HH + 0.08);
 
@@ -757,12 +814,22 @@ function draw() {
 }
 
 everyFrame(dt => {
+  // If frames are taking too long for a while, draw the comic more simply from then on.
+  S.slow += ((dt > 0.028 ? 1 : 0) - S.slow) * 0.02;
+  if (S.slow > 0.5) S.lite = true;
   update(dt);
   draw();
 });
 
 // ---------- start ----------
-motion.onSample = ({ accel }) => { if (accel > SWING) swing(); };
+// A real swing is a shove and then a stop, which reads as two jolts. Only the first counts:
+// the phone has to settle before it can swing again.
+let armed = true;
+motion.onSample = ({ accel, key }) => {
+  if (accel < SWING_REARM) armed = true;
+  if (armed && accel > SWING) { armed = false; swing(); }
+  if (key) armed = true;
+};
 
 async function start() {
   if (S.started) return;
