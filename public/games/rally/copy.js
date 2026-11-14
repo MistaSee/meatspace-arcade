@@ -15,6 +15,24 @@ export const COPY = {
   splat: 'SPLAT!',
   ko: 'RIGHT IN THE FACE!',
   more: 'MORE SOON',
+
+  // Stage 4: a page from a field manual. Printed labels, so dry and official.
+  fig: 'FIG. 4',
+  plateNo: 'PLATE 04',
+  plateTitle: 'OPERATOR ORIENTATION',
+  operator: 'OPERATOR (YOU)',
+  returns: 'RETURNS',
+  turnToFace: 'TURN TO FACE IT',
+  caution: 'CAUTION · ROTATING OPERATOR',
+  returned: 'RETURNED',
+  operatorError: 'OPERATOR ERROR',
+  behindYou: "it's behind you!",
+  // Stage 5: lights out.
+  listen: 'LISTEN',
+  // Stage 6: the ball loose in your room.
+  swingShort: 'SWING',
+  // Stage 7: both sides of the scoreboard.
+  you: 'YOU',
   keys: 'ARROWS TURN   Q E SPIN   SPACE SWINGS',
   noSensor: 'NO MOTION SENSOR',
 };

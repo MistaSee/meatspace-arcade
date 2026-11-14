@@ -1,13 +1,23 @@
 // Rally: one bat and ball, kept in play while the world round it keeps changing and asks
-// more of your body each time. This build has the first three stages:
+// more of your body each time. Eight stages, each made a different way:
 //   plain   white on black. Turn the phone like a steering wheel to move the bat.
 //   tip     the court comes loose and turns. Turn the phone to keep it level.
 //   whack   the court is punched through into a comic. Swing the phone to hit a soggy tomato.
+//   ring    a radar plate from a field manual. The ball comes from any side: turn your whole body.   (ring.js)
+//   dark    the same, with the lights out. Find it by ear.                                            (ring.js)
+//   room    the camera comes on and the ball is loose in your room. Find it and swat it.             (room.js)
+//   face    chunky 1990s 3D. The thing hitting it back is a cube with your own face on it.           (face.js)
+//   all     every world at once, in sliding strips. Then it stops dead.                              (all.js)
 // Hold the phone upright, facing you. There are no rules to read: it starts when tapped.
-import { COPY } from './copy.js';
-import { createMotion, buzz } from '../../shared/motion.js';
 import { createSfx } from '../../shared/sfx.js';
+import { openCamera } from '../../shared/camera.js';
 import { artUrl, everyFrame, clamp, pick } from '../../shared/juice.js';
+
+// The pieces still being tuned are fetched fresh on every visit, the same way the page fetches
+// this file. Phones otherwise keep an old copy for ten minutes after a fix.
+const fresh = new URL(import.meta.url).search;
+const [{ COPY }, { createMotion, buzz }, { ringStage }, { roomStage }, { faceStage }, { allStage }] = await Promise.all(
+  ['./copy.js', '../../shared/motion.js', './ring.js', './room.js', './face.js', './all.js'].map(file => import(file + fresh)));
 
 // ---------- rules ----------
 const HW = 1, HH = 1.72;            // the court's half-width and half-height, in its own units
@@ -104,6 +114,8 @@ const sfx = createSfx({
   punch: ['punch1', 'punch2', 'punch3', 'thud1', 'thud3'], boing: ['boing1', 'boing2', 'boing3', 'boing4'], splat: ['squelch1', 'squelch2', 'squelch3', 'splash1'],
   whoosh: ['whoosh1', 'whoosh2', 'whoosh3'], crowd: 'crowd', gary: ['goblin1', 'goblin2', 'goblin3', 'goblin4', 'goblin5', 'goblin6'], boom: ['boom1', 'bang1'],
   ouch: ['ouch1', 'ouch2', 'ouch3'], cheer: 'jingle_pizza1', shatter: ['shatter1', 'shatter2'], fight: 'say_fight',
+  stamp: ['slam1', 'slam2', 'thud2'], error: ['error1', 'error2'], powerDown: ['fall1', 'fall2'], hum: ['hum1', 'hum2'], static: ['scratch1', 'scratch2'],
+  glitch: ['zapdown', 'zapup'], gong: 'gong1',
 });
 
 // A tiny synthesiser: plain blips for the plain court, and a drone that sours as the court tips.
@@ -138,6 +150,26 @@ function blip(freq, dur = 0.07, vol = 0.12, type = 'square') {
   o.start(t);
   o.stop(t + dur + 0.02);
 }
+// A single note, which can sit to the left or the right in headphones.
+function tone({ freq, dur = 0.07, vol = 0.12, type = 'square', pan = 0 }) {
+  if (!ac) return;
+  const o = ac.createOscillator(), v = ac.createGain(), t = ac.currentTime;
+  o.type = type;
+  o.frequency.value = freq;
+  v.gain.setValueAtTime(vol, t);
+  v.gain.setValueAtTime(vol, t + dur * 0.8);
+  v.gain.linearRampToValueAtTime(0, t + dur);
+  let out = v;
+  if (pan && ac.createStereoPanner) {
+    out = ac.createStereoPanner();
+    out.pan.value = clamp(pan, -1, 1);
+    v.connect(out);
+  }
+  o.connect(v);
+  out.connect(ac.destination);
+  o.start(t);
+  o.stop(t + dur + 0.02);
+}
 function setDrone(level, off) {
   if (!drone) return;
   const t = ac.currentTime;
@@ -149,7 +181,7 @@ function setDrone(level, off) {
 
 // ---------- state ----------
 const S = {
-  stage: 'title',               // title | plain | break | tip | settle | punch | whack | ko | cut
+  stage: 'title',               // title | plain | break | tip | settle | punch | whack | ko | ring | dark | room | face | all
   t: 0,                         // seconds in this stage
   clock: 0,                     // seconds since the page opened
   lap: 0,
@@ -157,6 +189,8 @@ const S = {
   returns: 0,
   theta: 0,                     // how far the court is turned on the screen, degrees clockwise
   phi: 0,                       // how far the phone is turned in the world
+  heading: 0, pitch: 0,         // where the back of the phone points: degrees round, and degrees up
+  wipe: 0, flicker: 0, white: 0, // stage changes: a copier bar, a failing lamp, a flash
   u: 0,                         // how far off level the court is in the world: the thing you steer with
   bat: 0, rival: 0,
   ball: { x: 0, y: 0, vx: 0, vy: 0, live: false, spin: 0 },
@@ -172,7 +206,7 @@ const S = {
   boil: 0, boilSeed: 1,
   started: false, noSensor: false,
 };
-const test = { roll: null, auto: false };      // auto: true plays itself; 'edge' plays itself and aims for the end of the bat
+const test = { roll: null, heading: null, pitch: null, auto: false };      // auto: true plays itself; 'edge' plays itself and aims for the end of the bat
 const seen = [];                               // where the ball has just been, for the other bat's slow eyes
 let stopCrowd = null;
 
@@ -368,6 +402,26 @@ function playTomato(dt) {
   }
 }
 
+// A hard cut back to where it all started, with a score nobody earned.
+function cut() {
+  room.stop();
+  S.lap++;
+  S.score = [213 + Math.floor(Math.random() * 300), 7];
+  S.returns = 0;
+  S.theta = 0;
+  S.world = 0;
+  S.white = 0;
+  S.words = [];
+  S.shards = [];
+  S.ball.live = false;
+  S.serveIn = 1.2;
+  S.toPlayer = true;
+  to('plain');
+  blip(120, 0.4, 0.14);
+}
+
+const turnTowards = (now, want, most) => (now + clamp(wrap(want - now), -most, most) + 360) % 360;
+
 // ---------- every frame: the logic ----------
 function update(dt) {
   // A good whack stops the world for a beat.
@@ -383,6 +437,20 @@ function update(dt) {
   for (const s of S.stains) s.age += dt;
   for (const s of S.shards) { s.x += s.vx * dt; s.y += s.vy * dt; s.vy += 6 * dt; s.rot += s.spin * dt; }
   S.shards = S.shards.filter(s => Math.abs(s.x) < 4 && s.y < 5);
+
+  // Where the back of the phone points, for the stages played by turning your body.
+  if (S.stage === 'ring' || S.stage === 'dark' || S.stage === 'room') {
+    if (test.auto) {
+      // The pretend player turns to face the ball, as fast as a person could.
+      const aimH = S.stage === 'room' ? room.ball.h : ring.bearing;
+      test.heading = turnTowards(test.heading ?? S.heading, aimH, 170 * dt);
+      test.pitch = S.stage === 'room' ? (test.pitch ?? 0) + clamp(room.ball.p - (test.pitch ?? 0), -90 * dt, 90 * dt) : 0;
+      if (S.stage === 'room' && room.state.inZone) room.swing();
+    }
+    const at = test.heading !== null ? { heading: test.heading, pitch: test.pitch ?? 0 } : motion.look();
+    S.heading = at.heading;
+    S.pitch = at.pitch;
+  }
 
   // Where the phone is turned to, and so how far off level the court is.
   let roll = test.roll !== null ? test.roll : motion.roll();
@@ -480,24 +548,56 @@ function update(dt) {
     S.garyOut += dt;
     S.jab = Math.max(0, S.jab - dt * 5);
     if (S.t > 2.6) {
-      // A hard cut back to where it all started, with a score nobody earned.
+      // The comic goes through the photocopier and comes out as a page from a manual.
       stopCrowd?.();
       stopCrowd = null;
-      S.lap++;
-      S.score = [213 + Math.floor(Math.random() * 300), 7];
-      S.returns = 0;
-      S.theta = 0;
-      S.world = 0;
+      ring.enter(false);
+      to('ring');
+      S.wipe = 1;
       S.words = [];
-      S.shards = [];
-      S.ball.live = false;
-      S.serveIn = 1.2;
-      S.toPlayer = true;
-      to('plain');
-      hint(COPY.more, 3);
-      blip(120, 0.4, 0.14);
+      sfx.play('hum', { volume: 0.5 });
+      sfx.play('static', { volume: 0.6 });
+      buzz(40);
     }
+  } else if (S.stage === 'ring') {
+    S.wipe = Math.max(0, S.wipe - dt * 1.1);
+    if (S.wipe <= 0 && ring.update(dt)) {
+      // The lamp fails.
+      ring.enter(true);
+      to('dark');
+      S.flicker = 1;
+      sfx.play('powerDown', { volume: 0.9 });
+      buzz([30, 60, 30, 60, 200]);
+    }
+  } else if (S.stage === 'dark') {
+    S.flicker = Math.max(0, S.flicker - dt * 1.3);
+    if (ring.update(dt)) {
+      room.enter();
+      to('room');
+      sfx.play('static', { volume: 0.8 });
+    }
+  } else if (S.stage === 'room') {
+    if (room.update(dt)) {
+      // The ball goes into the lens, and the phone turns its other eye on you.
+      face.enter();
+      to('face');
+      S.white = 1;
+      sfx.play('glitch', { volume: 0.8 });
+      buzz(80);
+    }
+  } else if (S.stage === 'face') {
+    if (face.update(dt)) {
+      all.enter();
+      to('all');
+      S.white = 0.7;
+      sfx.play('shatter', { volume: 0.8 });
+      sfx.play('boom', { volume: 0.6 });
+      buzz([60, 30, 120]);
+    }
+  } else if (S.stage === 'all') {
+    if (all.update(dt)) cut();
   }
+  S.white = Math.max(0, S.white - dt * 2.2);
 
   const tipping = S.stage === 'break' || S.stage === 'tip' || S.stage === 'settle';
   S.zoom += ((S.stage === 'break' || S.stage === 'tip' ? 0.8 : 1) - S.zoom) * Math.min(1, dt * 2.5);
@@ -729,13 +829,62 @@ function drawComic() {
   if (S.stage === 'ko') comicText(COPY.ko, 0, -0.1, 0.27, '#ffe04a', -0.08);
 }
 
-function draw() {
+// Two ways of drawing: in the court's own units with the middle of the screen as zero, or
+// straight in screen pixels for the stages that fill the whole screen with a picture.
+function courtSpace() {
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
-  g.fillStyle = '#000';
-  g.fillRect(0, 0, W, H);
   g.translate(W / 2, H / 2);
   if (turnedPage) g.rotate(-rad(screenAngle()));
   g.scale(unit, unit);
+}
+function screenSpace() {
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+// The stages that live in their own files.
+function drawLater() {
+  const stage = { ring, dark: ring, room, face, all }[S.stage];
+  g.save();
+  if (S.shake > 0) g.translate((Math.random() - 0.5) * S.shake, (Math.random() - 0.5) * S.shake);
+  if (S.stage === 'ring' && S.wipe > 0) {
+    // The copier's light bar comes down the page: comic below it, the manual above.
+    const line = -HH * 1.25 + (1 - S.wipe) * HH * 2.5;
+    drawComic();
+    g.save();
+    g.beginPath();
+    g.rect(-4, -5, 8, line + 5);
+    g.clip();
+    ring.draw(true);
+    g.restore();
+    g.fillStyle = '#fff';
+    g.fillRect(-4, line - 0.05, 8, 0.1);
+    g.fillStyle = 'rgba(255,255,255,0.35)';
+    g.fillRect(-4, line - 0.16, 8, 0.32);
+  } else if (S.stage === 'dark') {
+    // The lamp stutters as it dies.
+    ring.draw(S.flicker > 0 && Math.random() < S.flicker * 0.7);
+  } else {
+    stage.draw(true);
+  }
+  g.restore();
+  if (S.white > 0) {
+    screenSpace();
+    g.fillStyle = `rgba(255,255,255,${S.white})`;
+    g.fillRect(0, 0, W, H);
+    courtSpace();
+  }
+}
+
+function draw() {
+  screenSpace();
+  g.fillStyle = '#000';
+  g.fillRect(0, 0, W, H);
+  courtSpace();
+  if (['ring', 'dark', 'room', 'face', 'all'].includes(S.stage)) {
+    drawLater();
+    if (S.noSensor) pix(COPY.noSensor, 0, -HH - 0.1, 0.022, '#f55');
+    return;
+  }
 
   const comic = S.stage === 'whack' || S.stage === 'ko';
   const breaking = S.stage === 'punch' && S.t > 1.0;
@@ -813,6 +962,38 @@ function draw() {
   if (S.noSensor && S.stage !== 'title') pix(COPY.noSensor, 0, -HH - 0.1, 0.022, '#f55');
 }
 
+// What the later stages are handed to work with.
+const K = {
+  g, S, COPY, test, motion, sfx, buzz, tone, blip, pix, GLYPHS, comicText, picture, pictures, rad, wrap, clamp, ease, rnd, pick, hint,
+  HW, HH, BAT, BAT_Y, BALL, playBall, openCamera, courtSpace, screenSpace,
+  view: () => ({ W, H, unit, dpr }),
+};
+const ring = ringStage(K);
+const room = roomStage(K);
+K.room = room;
+const face = faceStage(K);
+// How the first and third stages look as strips in the last one.
+const plainSkin = {
+  paint() { g.fillStyle = '#000'; g.fillRect(-4, -5, 8, 10); },
+  ball(x, y) { g.fillStyle = '#fff'; g.fillRect(x - BALL / 2, y - BALL / 2, BALL, BALL); },
+  bat(x, y) { g.fillStyle = '#fff'; g.fillRect(x - BAT / 2, y - 0.035, BAT, 0.07); },
+};
+const comicSkin = {
+  paint() {
+    g.fillStyle = '#ffd23c';
+    g.fillRect(-4, -5, 8, 10);
+    g.save();
+    g.scale(1 / unit, 1 / unit);
+    g.globalAlpha = 0.5;
+    g.fillStyle = halftone();
+    g.fillRect(-4 * unit, -5 * unit, 8 * unit, 10 * unit);
+    g.restore();
+  },
+  ball(x, y) { picture(pictures.tomato, x, y, 0.42, S.clock * 7); },
+  bat(x, y, theirs) { picture(theirs ? pictures.gary : pictures.fist, x, y + (theirs ? 0.12 : -0.08), theirs ? 0.75 : 0.62); },
+};
+const all = allStage(K, [plainSkin, ring.skin, comicSkin, room.skin, face.skin]);
+
 everyFrame(dt => {
   // If frames are taking too long for a while, draw the comic more simply from then on.
   S.slow += ((dt > 0.028 ? 1 : 0) - S.slow) * 0.02;
@@ -827,7 +1008,7 @@ everyFrame(dt => {
 let armed = true;
 motion.onSample = ({ accel, key }) => {
   if (accel < SWING_REARM) armed = true;
-  if (armed && accel > SWING) { armed = false; swing(); }
+  if (armed && accel > SWING) { armed = false; if (S.stage === 'room') room.swing(); else swing(); }
   if (key) armed = true;
 };
 
@@ -868,6 +1049,14 @@ window.rally = {
     S.words = [];
     if (stage === 'whack') { to('punch'); S.t = 0.95; S.ball.live = false; return; }
     if (stage === 'tip') { S.returns = PLAIN_RETURNS; to('plain'); return; }
+    S.wipe = 0;
+    S.flicker = 0;
+    if (stage === 'ring') ring.enter(false);
+    if (stage === 'dark') ring.enter(true);
+    if (stage === 'room') room.enter();
+    if (stage === 'face') face.enter();
+    if (stage === 'all') all.enter();
     to(stage);
   },
+  ring, room, face, all,
 };

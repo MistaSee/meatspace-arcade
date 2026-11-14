@@ -11,12 +11,15 @@
 //   motion.raw()                                   // { alpha, beta, gamma } as the phone reports them, or null
 //   motion.roll()                                  // degrees the phone is turned like a steering wheel: 0 upright,
 //                                                  // + clockwise as you look at it, 180 upside down
+//   motion.look()                                  // { heading, pitch } in degrees: where the back of the phone points.
+//                                                  // heading grows as you turn to your right; pitch is + when it points up
 //
 // Tilt comes from device orientation; shake and steps from device motion.
 // Both only exist on secure (https) pages. Without them, keys stand in:
 // arrows tilt, space shakes (Shift+space gently), Enter takes a step,
 // holding F counts as face down, holding U as face up, holding T turns you on the spot.
 // For roll: left and right arrows turn the pretend phone a little, Q and E keep turning it.
+// For look: A and D turn your pretend body, W and S tip the phone up and down.
 
 const G = 9.81;
 
@@ -31,13 +34,13 @@ export function createMotion({ keyTilt = 15 } = {}) {
     stepLow: 0.5,              // how far below it must dip first
     onSample: null,
     onStep: null,
-    start, level, read, stillFor, faceDown, faceUp, resetTurn, turned, raw, roll,
+    start, level, read, stillFor, faceDown, faceUp, resetTurn, turned, raw, roll, look,
   };
 
   let alpha = null, beta = null, gamma = null, base = null, turnSum = 0;
   const keys = new Set();
   let lpX = 0, lpY = 0, lpZ = 0, haveLp = false;
-  let fastX = 0, fastY = 0, gravitySign = 1, keyRoll = 0, keyLean = 0;
+  let fastX = 0, fastY = 0, gravitySign = 1, keyRoll = 0, keyLean = 0, keyHeading = 0, keyPitch = 0;
   let baseline = G, smooth = G, armed = false, lastStep = 0, lastMotion = 0;
   let quietSince = performance.now();
 
@@ -144,6 +147,20 @@ export function createMotion({ keyTilt = 15 } = {}) {
     return r;
   }
 
+  // Where the back of the phone points, worked out from all three angles together. A plain compass
+  // reading falls apart when the phone is held upright; this does not.
+  function look() {
+    if (m.live && alpha !== null) {
+      const k = Math.PI / 180, a = alpha * k, b = beta * k, c = gamma * k;
+      const sA = Math.sin(a), cA = Math.cos(a), sB = Math.sin(b), cB = Math.cos(b), sG = Math.sin(c), cG = Math.cos(c);
+      const x = -(cG * sA * sB + cA * sG), y = -(sA * sG - cA * cG * sB), z = -(cB * cG);
+      return { heading: ((Math.atan2(x, y) / k) + 360) % 360, pitch: Math.asin(Math.max(-1, Math.min(1, z))) / k };
+    }
+    keyHeading = (keyHeading + (keys.has('KeyD') ? 2.5 : 0) - (keys.has('KeyA') ? 2.5 : 0) + 360) % 360;
+    keyPitch = Math.max(-80, Math.min(80, keyPitch + (keys.has('KeyW') ? 1.5 : 0) - (keys.has('KeyS') ? 1.5 : 0)));
+    return { heading: keyHeading, pitch: keyPitch };
+  }
+
   function resetTurn() { turnSum = 0; }
   function turned() { return Math.abs(turnSum); }
   function raw() { return m.live ? { alpha, beta, gamma } : null; }
@@ -183,7 +200,7 @@ export function createMotion({ keyTilt = 15 } = {}) {
   addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT') return;
     if (e.key.startsWith('Arrow')) { keys.add(e.key); e.preventDefault(); }
-    else if (['KeyF', 'KeyU', 'KeyT', 'KeyQ', 'KeyE'].includes(e.code)) keys.add(e.code);
+    else if (['KeyF', 'KeyU', 'KeyT', 'KeyQ', 'KeyE', 'KeyA', 'KeyD', 'KeyW', 'KeyS'].includes(e.code)) keys.add(e.code);
     else if (e.key === ' ' && !e.repeat) {
       e.preventDefault();
       quietSince = performance.now();
