@@ -1030,6 +1030,27 @@ async function start() {
   blip(480, 0.08);
   // A phone that never reports movement cannot play this.
   setTimeout(() => { S.noSensor = matchMedia('(pointer: coarse)').matches && !motion.motionLive; }, 2500);
+  // For trying one stage without playing up to it: add ?from=4 (2 to 8) to the address.
+  const from = SKIP_TO[new URLSearchParams(location.search).get('from')];
+  if (from) jumpTo(from);
+}
+const SKIP_TO = { 2: 'tip', 3: 'whack', 4: 'ring', 5: 'dark', 6: 'room', 7: 'face', 8: 'all' };
+
+function jumpTo(stage) {
+  S.started = true;
+  S.theta = 0;
+  S.shards = [];
+  S.words = [];
+  if (stage === 'whack') { to('punch'); S.t = 0.95; S.ball.live = false; return; }
+  if (stage === 'tip') { S.returns = PLAIN_RETURNS; to('plain'); return; }
+  S.wipe = 0;
+  S.flicker = 0;
+  if (stage === 'ring') ring.enter(false);
+  if (stage === 'dark') ring.enter(true);
+  if (stage === 'room') room.enter();
+  if (stage === 'face') face.enter();
+  if (stage === 'all') all.enter();
+  to(stage);
 }
 canvas.addEventListener('pointerdown', start);
 addEventListener('keydown', e => { if (e.code === 'Space' || e.code === 'Enter') start(); });
@@ -1042,21 +1063,6 @@ window.rally = {
   motion,
   start,
   swing,
-  jump(stage) {
-    S.started = true;
-    S.theta = 0;
-    S.shards = [];
-    S.words = [];
-    if (stage === 'whack') { to('punch'); S.t = 0.95; S.ball.live = false; return; }
-    if (stage === 'tip') { S.returns = PLAIN_RETURNS; to('plain'); return; }
-    S.wipe = 0;
-    S.flicker = 0;
-    if (stage === 'ring') ring.enter(false);
-    if (stage === 'dark') ring.enter(true);
-    if (stage === 'room') room.enter();
-    if (stage === 'face') face.enter();
-    if (stage === 'all') all.enter();
-    to(stage);
-  },
+  jump: jumpTo,
   ring, room, face, all,
 };
