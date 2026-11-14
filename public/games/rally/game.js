@@ -14,9 +14,14 @@ const HW = 1, HH = 1.72;            // the court's half-width and half-height, i
 const BAT = 0.5;                    // how wide a bat is
 const BAT_Y = HH - 0.2;             // how far from the middle each bat sits
 const BALL = 0.07;
-const SERVE_SPEED = 1.7, TOP_SPEED = 3.1, SPEED_UP = 0.12;
+const SERVE_SPEED = 1.9, TOP_SPEED = 3.3, SPEED_UP = 0.16;
 const STEER = 26;                   // degrees of turn that put the bat at the edge
-const RIVAL_PACE = 1.5;             // how fast the other bat can move
+// The other bat has to be beatable. It is slower than a fast ball, it only reacts once the ball is
+// well on its way, and it sees the ball a moment late. A shot off the end of your bat usually beats it.
+const RIVAL_PACE = 1.1;             // how fast the other bat can move
+const RIVAL_SEES = 0.3;             // it starts chasing when the ball is this far past the net
+const RIVAL_LAG = 0.12;             // seconds behind the ball's real position
+const RIVAL_SLIDE = 0.9;            // how far a tilted court throws it off
 const PLAIN_RETURNS = 5;            // returns before the court comes loose
 const PLAIN_LIMIT = 40;             // seconds: it comes loose anyway
 // Stage 2: how far round the court has turned (degrees) at each moment (seconds).
@@ -141,6 +146,7 @@ function setDrone(level, off) {
 const S = {
   stage: 'title',               // title | plain | break | tip | settle | punch | whack | ko | cut
   t: 0,                         // seconds in this stage
+  clock: 0,                     // seconds since the page opened
   lap: 0,
   score: [0, 0],                // you, them
   returns: 0,
@@ -160,7 +166,8 @@ const S = {
   boil: 0, boilSeed: 1,
   started: false, noSensor: false,
 };
-const test = { roll: null, auto: false };
+const test = { roll: null, auto: false };      // auto: true plays itself; 'edge' plays itself and aims for the end of the bat
+const seen = [];                               // where the ball has just been, for the other bat's slow eyes
 let stopCrowd = null;
 
 function to(stage) {
@@ -218,8 +225,12 @@ function playBall(dt, sliding) {
     blip(120, 0.35, 0.14);
     if (!youScored) buzz(60);
   }
-  // The other bat chases the ball, but only so fast.
-  const want = b.vy < 0 ? b.x : b.x * 0.3;
+  // The other bat chases where the ball was a moment ago, once it is coming, and only so fast.
+  // On a tilted court it slides downhill like everything else.
+  seen.push([S.clock, b.x]);
+  while (seen.length > 2 && seen[1][0] <= S.clock - RIVAL_LAG) seen.shift();
+  const coming = b.live && b.vy < 0 && b.y < RIVAL_SEES;
+  const want = (coming ? seen[0][1] : S.rival * 0.98) + (sliding ? Math.sin(rad(S.u)) * RIVAL_SLIDE : 0);
   S.rival += clamp(want - S.rival, -RIVAL_PACE * dt, RIVAL_PACE * dt);
   S.rival = clamp(S.rival, -HW + BAT / 2, HW - BAT / 2);
 }
@@ -328,6 +339,7 @@ function playTomato(dt) {
 // ---------- every frame: the logic ----------
 function update(dt) {
   S.t += dt;
+  S.clock += dt;
   S.hintFor = Math.max(0, S.hintFor - dt);
   S.shake = Math.max(0, S.shake - dt * 0.5);
   S.boil += dt;
@@ -342,7 +354,8 @@ function update(dt) {
   let roll = test.roll !== null ? test.roll : motion.roll();
   if (test.auto) {
     const b = S.ball, edge = HW - BAT / 2;
-    const aim = S.stage === 'whack' || b.vy > 0 ? b.x : 0;
+    const off = test.auto === 'edge' && S.stage !== 'whack' ? (b.x > 0 ? -0.2 : 0.2) : 0;
+    const aim = S.stage === 'whack' || b.vy > 0 ? b.x + off : 0;
     roll = clamp(aim / edge, -1, 1) * STEER - S.theta;
     if (S.stage === 'whack' && b.live && b.vy > 0 && b.y > BAT_Y - 0.4 && Math.abs(b.x - S.bat) < 0.3) swing();
   }
