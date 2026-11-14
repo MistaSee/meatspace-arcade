@@ -9,11 +9,14 @@
 //   motion.faceUp()                                // true while the screen faces the sky
 //   motion.resetTurn(); motion.turned()            // degrees you have turned on the spot since the reset
 //   motion.raw()                                   // { alpha, beta, gamma } as the phone reports them, or null
+//   motion.roll()                                  // degrees the phone is turned like a steering wheel: 0 upright,
+//                                                  // + clockwise as you look at it, 180 upside down
 //
 // Tilt comes from device orientation; shake and steps from device motion.
 // Both only exist on secure (https) pages. Without them, keys stand in:
 // arrows tilt, space shakes (Shift+space gently), Enter takes a step,
 // holding F counts as face down, holding U as face up, holding T turns you on the spot.
+// For roll: left and right arrows turn the pretend phone a little, Q and E keep turning it.
 
 const G = 9.81;
 
@@ -28,12 +31,13 @@ export function createMotion({ keyTilt = 15 } = {}) {
     stepLow: 0.5,              // how far below it must dip first
     onSample: null,
     onStep: null,
-    start, level, read, stillFor, faceDown, faceUp, resetTurn, turned, raw,
+    start, level, read, stillFor, faceDown, faceUp, resetTurn, turned, raw, roll,
   };
 
   let alpha = null, beta = null, gamma = null, base = null, turnSum = 0;
   const keys = new Set();
   let lpX = 0, lpY = 0, lpZ = 0, haveLp = false;
+  let fastX = 0, fastY = 0, gravitySign = 1, keyRoll = 0, keyLean = 0;
   let baseline = G, smooth = G, armed = false, lastStep = 0, lastMotion = 0;
   let quietSince = performance.now();
 
@@ -63,6 +67,10 @@ export function createMotion({ keyTilt = 15 } = {}) {
       gmag = Math.hypot(g.x, g.y, g.z);
       if (!haveLp) { lpX = g.x; lpY = g.y; lpZ = g.z; haveLp = true; }
       lpX = lpX * 0.9 + g.x * 0.1; lpY = lpY * 0.9 + g.y * 0.1; lpZ = lpZ * 0.9 + g.z * 0.1;
+      // A quicker average for roll, which has to keep up with a turning wrist.
+      fastX = fastX * 0.7 + g.x * 0.3; fastY = fastY * 0.7 + g.y * 0.3;
+      // Some phones report gravity the other way up. With the phone held upright the angle sensor says which.
+      if (beta !== null && Math.abs(beta - 90) < 40 && Math.abs(gamma) < 30 && Math.abs(lpY) > 5) gravitySign = lpY > 0 ? 1 : -1;
     }
     if (e.acceleration && e.acceleration.x !== null) ({ x, y, z } = e.acceleration);
     else if (gmag !== null) { x = g.x - lpX; y = g.y - lpY; z = g.z - lpZ; }
@@ -123,6 +131,19 @@ export function createMotion({ keyTilt = 15 } = {}) {
     return keys.has('KeyU');
   }
 
+  // How far the phone is turned like a steering wheel, from which way gravity pulls across the screen.
+  // Only meaningful while the screen is roughly upright, not lying flat.
+  function roll() {
+    if (m.motionLive && haveLp) return (Math.atan2(-gravitySign * fastX, gravitySign * fastY) * 180) / Math.PI;
+    const lean = (keys.has('ArrowRight') ? 25 : 0) - (keys.has('ArrowLeft') ? 25 : 0);
+    keyLean += (lean - keyLean) * 0.25;
+    keyRoll += (keys.has('KeyE') ? 2.5 : 0) - (keys.has('KeyQ') ? 2.5 : 0);
+    let r = (keyRoll + keyLean) % 360;
+    if (r > 180) r -= 360;
+    if (r < -180) r += 360;
+    return r;
+  }
+
   function resetTurn() { turnSum = 0; }
   function turned() { return Math.abs(turnSum); }
   function raw() { return m.live ? { alpha, beta, gamma } : null; }
@@ -162,7 +183,7 @@ export function createMotion({ keyTilt = 15 } = {}) {
   addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT') return;
     if (e.key.startsWith('Arrow')) { keys.add(e.key); e.preventDefault(); }
-    else if (e.code === 'KeyF' || e.code === 'KeyU' || e.code === 'KeyT') keys.add(e.code);
+    else if (['KeyF', 'KeyU', 'KeyT', 'KeyQ', 'KeyE'].includes(e.code)) keys.add(e.code);
     else if (e.key === ' ' && !e.repeat) {
       e.preventDefault();
       quietSince = performance.now();
