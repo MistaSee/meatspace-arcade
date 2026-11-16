@@ -1,8 +1,10 @@
 // The Hall: each game's scoreboard.
 // Shared across everyone's phones when the arcade's own server is running.
-// On a static host (GitHub Pages) there is no server, so scores stay on the phone.
+// On the public site there is no such server, so scores stay on the phone and nothing is sent.
 
-const API = location.hostname.endsWith('github.io') || location.protocol === 'file:' ? null : '/api/scores';
+// The arcade's own server only ever runs on this computer or the home network.
+const AT_HOME = /^(localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)$/;
+const API = location.protocol !== 'file:' && AT_HOME.test(location.hostname) ? '/api/scores' : null;
 const localKey = game => `arcade.hall.${game}`;
 
 const store = {
