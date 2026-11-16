@@ -1,0 +1,26 @@
+// Every word the player sees in Nerves. It is a lie-detector chart: typed, clipped, official.
+
+export const COPY = {
+  title: 'NERVES',
+  rule: 'Two players. A fingertip each on the back camera. The first heart to climb {rise} beats loses. No touching.',
+  warm: 'The lamp gets warm. Lift off if it bothers you.',
+  start: 'TAP TO BEGIN',
+  subject: 'SUBJECT: YOU',
+  chart: 'CHART No. {n}',
+  perMinute: 'BEATS A MINUTE',
+  noFinger: 'FINGERTIP OVER THE BACK CAMERA',
+  finding: 'FINDING YOUR PULSE',
+  gently: 'HOLD STILL. PRESS GENTLY.',
+  resting: 'RESTING',
+  limit: 'LIMIT',
+  ready: 'TAP WHEN YOU ARE BOTH READY',
+  cracked: 'CRACKED',
+  crackedAfter: 'after {time} seconds',
+  held: 'UNMOVED',
+  heldBy: 'up {rise} in {time} seconds',
+  lifted: 'FINGER OFF',
+  forfeit: 'That is a forfeit.',
+  again: 'TAP TO GO AGAIN',
+  noCamera: 'This needs the camera. Allow it, then reload.',
+  noLamp: 'This phone will not switch its lamp on from here. Hold it under a bright light instead.',
+};
