@@ -5,9 +5,9 @@
 //   node tools/sync-to-techsavage.mjs            copy, replacing what was there
 //   node tools/sync-to-techsavage.mjs --check    say what would change and copy nothing
 //
-// It replaces only arcade/games and arcade/shared. The arcade's front page (arcade/index.html
-// and the files beside it) belongs to the Tech Savage site and is left alone.
-import { cp, rm, mkdir, readdir, stat, readFile } from 'node:fs/promises';
+// It replaces only arcade/games, arcade/shared and arcade/qr. The arcade's front page
+// (arcade/index.html and the files beside it) belongs to the Tech Savage site and is left alone.
+import { cp, rm, mkdir, readdir, stat, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -15,6 +15,8 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const FROM = path.join(here, '..', 'public');
 const TO = path.resolve(process.env.TECHSAVAGE_SITE || path.join(here, '..', '..', 'tech-savage', 'site'), 'arcade');
 
+// Where the arcade is served from.
+const ADDRESS = 'https://techsavage.co.uk/arcade/';
 // Only games that are meant to be public. Anything not listed here stays off the site.
 const GAMES = ['rally', 'shake-duel', 'egg-race', 'goblin-king', 'draw-blind', 'nerves', 'searchlight', 'bat-and-moth'];
 // Parts of shared/ that only the unpublished 3D games use.
@@ -54,4 +56,15 @@ if (!process.argv.includes('--check')) {
     await cp(src, path.join(TO, rel));
   }
   console.log(`copied into ${TO}`);
+
+  // One QR code per game, in the site's own ink and paper, for the arcade's front page.
+  const { createRequire } = await import('node:module');
+  const QRCode = createRequire(import.meta.url)('qrcode');
+  await rm(path.join(TO, 'qr'), { recursive: true, force: true });
+  await mkdir(path.join(TO, 'qr'), { recursive: true });
+  for (const game of GAMES) {
+    const svg = await QRCode.toString(`${ADDRESS}games/${game}/`, { type: 'svg', errorCorrectionLevel: 'M', margin: 1, color: { dark: '#0b0420', light: '#efe7d4' } });
+    await writeFile(path.join(TO, 'qr', `${game}.svg`), svg);
+  }
+  console.log(`${GAMES.length} QR codes pointing at ${ADDRESS}games/`);
 }
